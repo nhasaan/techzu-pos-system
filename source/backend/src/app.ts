@@ -9,6 +9,7 @@ import { healthRouter } from './modules/health/routes';
 import { inventoryRouter } from './modules/inventory/routes';
 import { menuRouter } from './modules/menu/routes';
 import { outletsRouter } from './modules/outlets/routes';
+import { salesRouter } from './modules/sales/routes';
 import { usersRouter } from './modules/users/routes';
 
 export function createApp() {
@@ -30,6 +31,7 @@ export function createApp() {
   api.use(outletsRouter);
   api.use(menuRouter);
   api.use(inventoryRouter);
+  api.use(salesRouter);
   api.use(usersRouter);
   app.use('/api', api);
 
