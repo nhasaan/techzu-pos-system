@@ -9,6 +9,13 @@ import { authRepository } from './repository';
 
 const blacklistKey = (jti: string) => `bl:${jti}`;
 
+/**
+ * Two browser tabs (or a retried request) can present the same refresh token within moments of
+ * each other. Inside this window the loser just gets a 401 instead of triggering reuse detection,
+ * which would otherwise log the user out everywhere, including the session the winner just got.
+ */
+const REFRESH_RACE_GRACE_MS = 10_000;
+
 // Verifying against a real hash when the user does not exist keeps response time constant,
 // so login timing cannot be used to enumerate usernames.
 let dummyHash: Promise<string> | null = null;
@@ -58,6 +65,9 @@ export async function refresh(refreshToken: string) {
   if (result) return { accessToken: result.accessToken, refreshToken: result.refreshToken };
 
   const session = await authRepository.findSessionByJti(claims.jti);
+  if (session?.status === 'consumed' && session.consumedAt && Date.now() - session.consumedAt.getTime() < REFRESH_RACE_GRACE_MS) {
+    throw new UnauthorizedError('Refresh token already used', { token: 'Already used' });
+  }
   if (session?.status === 'consumed') {
     const jtis = await authRepository.revokeAllSessions(session.userId);
     await Promise.all(jtis.map((jti) => blacklist(jti, config.tokens.accessTtlSec)));

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { pool } from '../../src/shared/db';
 import { api, bearer, createUser, login, PASSWORD, setupDatabase, teardownDatabase } from '../helpers';
 
 describe('auth', () => {
@@ -34,6 +35,8 @@ describe('auth', () => {
     expect(second.refreshToken).not.toBe(first.refreshToken);
     await api().get('/api/outlets').set(bearer(second.accessToken)).expect(200);
 
+    // A stolen token is replayed later than the near-simultaneous retry window.
+    await pool.query("UPDATE tokens SET consumed_at = now() - interval '1 minute' WHERE status = 'consumed'");
     const replay = await api().post('/api/auth/refresh').send({ refreshToken: first.refreshToken });
     expect(replay.status).toBe(401);
     expect(replay.body.message).toMatch(/reuse/i);
@@ -43,10 +46,14 @@ describe('auth', () => {
     expect((await api().post('/api/auth/refresh').send({ refreshToken: second.refreshToken })).status).toBe(401);
   });
 
-  it('lets only one of two concurrent refreshes win', async () => {
+  it('lets only one of two concurrent refreshes win without killing the winner', async () => {
     const { refreshToken } = await login('admin');
     const results = await Promise.all([1, 2].map(() => api().post('/api/auth/refresh').send({ refreshToken })));
     expect(results.map((r) => r.status).sort()).toEqual([200, 401]);
+    // Two tabs refreshing at once is not token theft: the winning session must stay valid.
+    const winner = results.find((r) => r.status === 200)!.body.data;
+    await api().get('/api/outlets').set(bearer(winner.accessToken)).expect(200);
+    await api().post('/api/auth/refresh').send({ refreshToken: winner.refreshToken }).expect(200);
   });
 
   it('logout invalidates the access token', async () => {

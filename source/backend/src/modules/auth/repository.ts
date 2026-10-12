@@ -29,7 +29,7 @@ export const authRepository = {
   },
 
   findSessionByJti(jti: string) {
-    return db.query.tokens.findFirst({ where: eq(tokens.jti, jti), columns: { status: true, userId: true } });
+    return db.query.tokens.findFirst({ where: eq(tokens.jti, jti), columns: { status: true, userId: true, consumedAt: true } });
   },
 
   async revokeSession(jti: string) {
