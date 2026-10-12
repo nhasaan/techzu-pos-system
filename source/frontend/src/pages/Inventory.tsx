@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth';
 import { useOutletStore } from '../store/outlet';
 import Pagination from '../components/Pagination';
+import { usePageForOutlet } from '../lib/usePageForOutlet';
 import { listInventoryByOutlet, setStock, type InventoryRow } from '../api/inventory';
 import { listMenuByOutlet } from '../api/menu';
 import { ApiError } from '../lib/api';
@@ -32,7 +33,7 @@ export default function Inventory() {
   const user = useAuthStore((s) => s.user);
   const selectedOutletId = useOutletStore((s) => s.selectedOutletId);
   const outletId = user?.role === ROLE_OUTLET ? user?.outletId ?? null : selectedOutletId;
-  const [page, setPage] = useState(1);
+  const [page, setPage] = usePageForOutlet(outletId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 

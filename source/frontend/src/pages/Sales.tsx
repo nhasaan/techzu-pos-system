@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth';
 import { useOutletStore } from '../store/outlet';
 import Pagination from '../components/Pagination';
+import { usePageForOutlet } from '../lib/usePageForOutlet';
 import { listSalesByOutlet, createSale, type Sale } from '../api/sales';
 import { listMenuByOutlet } from '../api/menu';
 import { ApiError } from '../lib/api';
@@ -37,9 +38,9 @@ export default function Sales() {
   const user = useAuthStore((s) => s.user);
   const selectedOutletId = useOutletStore((s) => s.selectedOutletId);
   const outletId = user?.role === ROLE_OUTLET ? user?.outletId ?? null : selectedOutletId;
-  const [page, setPage] = useState(1);
+  const [page, setPage] = usePageForOutlet(outletId);
   const [dialogOpen, setDialogOpen] = useState(false);
-  // One key per checkout attempt; rotated after a successful sale.
+  // One key per checkout; retries of the same checkout reuse it.
   const [idempotencyKey, setIdempotencyKey] = useState(() => uuid());
   const queryClient = useQueryClient();
 
@@ -111,7 +112,14 @@ export default function Sales() {
           <Receipt className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Sales</h1>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="gap-2">
+        <Button
+          onClick={() => {
+            // A new checkout gets a new key; retries inside the same dialog reuse it.
+            setIdempotencyKey(uuid());
+            setDialogOpen(true);
+          }}
+          className="gap-2"
+        >
           <Plus className="h-4 w-4" />
           New sale
         </Button>
