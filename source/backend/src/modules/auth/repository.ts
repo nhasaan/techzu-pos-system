@@ -7,8 +7,9 @@ export const authRepository = {
     return db.query.users.findFirst({ where: eq(users.username, username) });
   },
 
-  findUserById(id: number) {
-    return db.query.users.findFirst({ where: eq(users.id, id) });
+  /** Takes the executor so callers inside a transaction reuse its connection (never ask for a second). */
+  findUserById(exec: DbExecutor, id: number) {
+    return exec.query.users.findFirst({ where: eq(users.id, id) });
   },
 
   /** Housekeeping: refresh sessions past their expiry can never be used again. */

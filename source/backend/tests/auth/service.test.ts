@@ -56,6 +56,14 @@ describe('auth', () => {
     await api().post('/api/auth/refresh').send({ refreshToken: winner.refreshToken }).expect(200);
   });
 
+  it('handles more concurrent refreshes than pool connections (one connection per refresh)', async () => {
+    // Pool size is 10 (DB_POOL_MAX default). If a refresh needed a second connection while holding its
+    // transaction open, 15 concurrent refreshes would starve the pool and time out.
+    const sessions = await Promise.all(Array.from({ length: 15 }, () => login('admin')));
+    const results = await Promise.all(sessions.map((s) => api().post('/api/auth/refresh').send({ refreshToken: s.refreshToken })));
+    expect(results.map((r) => r.status)).toEqual(Array(15).fill(200));
+  }, 30000);
+
   it('prunes expired sessions on login', async () => {
     await login('admin');
     await pool.query("UPDATE tokens SET expires_at = now() - interval '1 day'");

@@ -58,7 +58,7 @@ export async function refresh(refreshToken: string) {
     const consumed = await authRepository.consumeActiveSession(tx, claims.jti);
     if (!consumed) return null;
     // Re-read the user so role / outlet changes (or deletion) take effect on refresh.
-    const user = await authRepository.findUserById(consumed.userId);
+    const user = await authRepository.findUserById(tx, consumed.userId);
     if (!user) return null;
     const { pair, expiresAt } = await startSession(toSubject(user));
     await authRepository.insertSession(tx, user.id, pair.jti, expiresAt);
