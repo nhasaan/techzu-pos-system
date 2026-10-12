@@ -1,5 +1,7 @@
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
 import { config } from './shared/config';
+import { openApiDocument } from './shared/utils/openapi';
 import { errorHandler, notFoundHandler } from './shared/utils/error-handler';
 import { requestLogger } from './shared/utils/request-logger';
 import { apiLimiter } from './shared/utils/rate-limit';
@@ -25,6 +27,11 @@ export function createApp() {
   app.use(express.json({ limit: '100kb' }));
 
   app.use(healthRouter);
+
+  if (config.apiDocs) {
+    app.get('/docs.json', (_req, res) => res.json(openApiDocument));
+    app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, { customSiteTitle: 'POS API docs' }));
+  }
 
   const api = express.Router();
   api.use(apiLimiter);

@@ -49,6 +49,8 @@ const envSchema = z
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
     LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(10),
+
+    API_DOCS: z.enum(['true', 'false']).optional(),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'production') return;
@@ -119,6 +121,8 @@ function loadConfig() {
       max: env.RATE_LIMIT_MAX,
       loginMax: env.LOGIN_RATE_LIMIT_MAX,
     },
+    // Swagger UI at /docs: on by default outside production, opt-in in production.
+    apiDocs: env.API_DOCS ? env.API_DOCS === 'true' : env.NODE_ENV !== 'production',
   };
 }
 
