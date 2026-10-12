@@ -22,8 +22,8 @@
     "db:setup": "npm run db:migrate && npm run db:seed",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
-    "test:unit": "vitest run tests/unit",
-    "test:integration": "vitest run tests/integration",
+    "test:unit": "vitest run validation schemas",
+    "test:integration": "vitest run service",
     "test:watch": "vitest"
   },
   "dependencies": {
