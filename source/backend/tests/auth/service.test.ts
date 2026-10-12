@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pool } from '../../src/shared/db';
+import { cleanupExpiredSessions } from '../../src/shared/utils/maintenance';
 import { api, bearer, createUser, login, PASSWORD, setupDatabase, teardownDatabase } from '../helpers';
 
 describe('auth', () => {
@@ -85,7 +86,6 @@ describe('auth', () => {
   });
 
   it('background cleanup removes sessions expired over a day ago, in batches', async () => {
-    const { cleanupExpiredSessions } = await import('../../src/shared/utils/maintenance');
     await login('admin');
     await pool.query("UPDATE tokens SET expires_at = now() - interval '2 days'");
     const deleted = await cleanupExpiredSessions();

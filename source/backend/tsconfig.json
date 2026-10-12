@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "node16",
+    "moduleResolution": "node16",
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": ".",
@@ -17,5 +17,5 @@
     "resolveJsonModule": true,
     "sourceMap": true
   },
-  "include": ["src/**/*", "tests/**/*", "drizzle.config.ts", "vitest.config.ts"]
+  "include": ["src/**/*", "tests/**/*", "drizzle.config.ts", "vitest.config.mts"]
 }
