@@ -81,7 +81,7 @@ Rules followed:
   - Each refresh token works once, enforced by a single conditional `UPDATE … WHERE status = 'active'`.
   - Presenting a consumed token revokes and blacklists every session of that user.
   - The user's role and outlet are re-read from the database on refresh.
-- **Logout:** blacklists the session id in Redis for the remaining access-token lifetime and revokes it in the DB.
+- **Logout:** blacklists the session id in Redis for the remaining access-token lifetime and revokes it in the DB. Redis keeps a "blacklist loaded" marker; if it is missing (Redis restarted without persistence, was flushed, or evicted keys), revocation checks fall back to Postgres and the blacklist is rebuilt from recently revoked sessions. A Redis restart therefore can't bring logged-out tokens back to life.
 - **Authorisation:** HQ endpoints require `hqadmin` or `superadmin`. User management requires `superadmin`. Outlet admins are limited to their own outlet in every module, and the check is server-side.
 - **Input:** every body, query, and param is parsed with zod, and unknown keys are stripped. Payloads are capped at 100 kb.
 - **Transport and headers:** helmet (HSTS, CSP, nosniff …), a CORS allowlist, and `x-powered-by` disabled.

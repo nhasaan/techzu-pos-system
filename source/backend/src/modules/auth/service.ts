@@ -4,7 +4,7 @@ import { db } from '../../shared/db';
 import { UnauthorizedError } from '../../shared/utils/errors';
 import { issueTokenPair, verifyToken, type SessionSubject } from '../../shared/utils/jwt';
 import { logger } from '../../shared/utils/logger';
-import { cacheGet, cacheSet, isRedisReady } from '../../shared/utils/redis';
+import { cacheSet, isRedisReady, redis } from '../../shared/utils/redis';
 import { authRepository } from './repository';
 
 const blacklistKey = (jti: string) => `bl:${jti}`;
@@ -95,10 +95,46 @@ async function blacklist(jti: string, ttlSec: number) {
  */
 export async function isSessionRevoked(jti: string): Promise<boolean> {
   if (isRedisReady()) {
-    const hit = await cacheGet(blacklistKey(jti));
-    if (hit !== null) return true;
-    if (isRedisReady()) return false;
+    try {
+      const [hit, loaded] = await redis.mget(blacklistKey(jti), BLACKLIST_LOADED_KEY);
+      if (hit !== null) return true;
+      // The marker disappears whenever Redis loses its data (restart without persistence, flush,
+      // eviction). Without it a cache miss proves nothing, so fall through to the database.
+      if (loaded !== null) return false;
+      void rebuildBlacklist();
+    } catch {
+      // fall through to the database
+    }
   }
   const session = await authRepository.findSessionByJti(jti);
   return session?.status === 'revoked';
+}
+
+const BLACKLIST_LOADED_KEY = 'bl:__loaded';
+let rebuilding: Promise<void> | null = null;
+
+/**
+ * Re-populates the Redis blacklist from the sessions table (only sessions revoked within the
+ * access-token lifetime matter), then sets the marker that lets cache misses be trusted again.
+ */
+export function rebuildBlacklist(): Promise<void> {
+  rebuilding ??= (async () => {
+    try {
+      const ttlMs = config.tokens.accessTtlSec * 1000;
+      const rows = await authRepository.findRecentlyRevoked(new Date(Date.now() - ttlMs));
+      const pipeline = redis.pipeline();
+      for (const { jti, revokedAt } of rows) {
+        const remainingSec = Math.ceil((revokedAt!.getTime() + ttlMs - Date.now()) / 1000);
+        if (remainingSec > 0) pipeline.set(blacklistKey(jti), '1', 'EX', remainingSec);
+      }
+      pipeline.set(BLACKLIST_LOADED_KEY, new Date().toISOString());
+      await pipeline.exec();
+      logger.info({ entries: rows.length }, 'Token blacklist rebuilt in Redis');
+    } catch (err) {
+      logger.warn({ err }, 'Could not rebuild token blacklist; database fallback stays active');
+    } finally {
+      rebuilding = null;
+    }
+  })();
+  return rebuilding;
 }

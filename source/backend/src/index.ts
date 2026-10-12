@@ -3,9 +3,13 @@ import { createApp } from './app';
 import { config } from './shared/config';
 import { pool } from './shared/db';
 import { logger } from './shared/utils/logger';
-import { closeRedis } from './shared/utils/redis';
+import { closeRedis, redis } from './shared/utils/redis';
+import { rebuildBlacklist } from './modules/auth/service';
 
 const app = createApp();
+
+// Redis may have restarted empty; rebuild the token blacklist whenever it (re)connects.
+redis.on('ready', () => void rebuildBlacklist());
 const server = http.createServer(app);
 
 // Keep-alive longer than typical load balancer idle timeouts (AWS ALB: 60s) to avoid 502s on reused sockets.

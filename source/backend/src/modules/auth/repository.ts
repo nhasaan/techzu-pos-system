@@ -33,16 +33,24 @@ export const authRepository = {
   },
 
   async revokeSession(jti: string) {
-    await db.update(tokens).set({ status: 'revoked' }).where(eq(tokens.jti, jti));
+    await db.update(tokens).set({ status: 'revoked', revokedAt: new Date() }).where(eq(tokens.jti, jti));
   },
 
   /** Revokes every non-revoked session for a user and returns their jtis (to blacklist access tokens). */
   async revokeAllSessions(userId: number): Promise<string[]> {
     const rows = await db
       .update(tokens)
-      .set({ status: 'revoked' })
+      .set({ status: 'revoked', revokedAt: new Date() })
       .where(and(eq(tokens.userId, userId), sql`${tokens.status} <> 'revoked'`, gt(tokens.expiresAt, sql`now()`)))
       .returning({ jti: tokens.jti });
     return rows.map((r) => r.jti);
+  },
+
+  /** Sessions revoked recently enough that their access tokens may still be unexpired. */
+  async findRecentlyRevoked(since: Date) {
+    return db
+      .select({ jti: tokens.jti, revokedAt: tokens.revokedAt })
+      .from(tokens)
+      .where(and(eq(tokens.status, 'revoked'), gt(tokens.revokedAt, since)));
   },
 };

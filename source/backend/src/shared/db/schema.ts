@@ -71,9 +71,11 @@ export const tokens = pgTable(
     status: tokenStatusEnum('status').notNull().default('active'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    // When the session was revoked; used to rebuild the Redis blacklist after Redis loses data.
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index('tokens_user_id_status_idx').on(t.userId, t.status)],
+  (t) => [index('tokens_user_id_status_idx').on(t.userId, t.status), index('tokens_revoked_at_idx').on(t.revokedAt)],
 );
 
 export const menuItems = pgTable(

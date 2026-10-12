@@ -48,9 +48,10 @@ One row per issued refresh token. Rows are rotated on every refresh.
 | `status`      | token_status | `active`, `consumed`, `revoked`           |
 | `expires_at`  | timestamptz  |                                           |
 | `consumed_at` | timestamptz  | nullable                                  |
+| `revoked_at`  | timestamptz  | nullable; used to rebuild the Redis blacklist |
 | `created_at`  | timestamptz  |                                           |
 
-Index: `tokens_user_id_status_idx (user_id, status)`, used to revoke all of a user's sessions.
+Indexes: `tokens_user_id_status_idx (user_id, status)`, used to revoke all of a user's sessions; `tokens_revoked_at_idx (revoked_at)`, used to rebuild the blacklist.
 
 ### menu_items (master menu, owned by HQ)
 
