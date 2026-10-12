@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { cn } from '../lib/utils';
+import { Skeleton, TableSkeleton } from '../components/ui/skeleton';
+import { rowEnter } from '../lib/motion';
 
 const money = (n: number) => n.toFixed(2);
 
@@ -51,7 +53,7 @@ export default function Reports() {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reports</h1>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-card px-3 py-2">
+      <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-card px-3 py-2">
         <span className="text-xs font-medium text-muted-foreground shrink-0">Date range</span>
         <div className="flex items-center gap-2">
           <Input id="dateFrom" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 w-auto text-sm" />
@@ -75,7 +77,7 @@ export default function Reports() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {revenue.isLoading && <p className="py-4 text-sm text-muted-foreground">Loading…</p>}
+          {revenue.isLoading && <TableSkeleton rows={3} cols={3} />}
           {revenue.isError && <p className="py-4 text-sm text-destructive">Failed to load revenue.</p>}
           {revenue.data && (
             <Table>
@@ -87,11 +89,12 @@ export default function Reports() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {revenue.data.items.map((o) => (
+                {revenue.data.items.map((o, i) => (
                   <TableRow
                     key={o.outletId}
+                    style={rowEnter(i).style}
                     onClick={isOutletUser ? undefined : () => setSelectedOutletId(o.outletId)}
-                    className={cn(!isOutletUser && 'cursor-pointer', o.outletId === outletId && 'bg-primary/5')}
+                    className={cn('row-enter', !isOutletUser && 'cursor-pointer', o.outletId === outletId && 'bg-primary/5')}
                   >
                     <TableCell className="font-medium">{o.outletName}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{o.transactionCount}</TableCell>
@@ -122,7 +125,12 @@ export default function Reports() {
               {(dateFrom || dateTo) && <CardDescription>Period: {dateFrom || '—'} to {dateTo || '—'}</CardDescription>}
             </CardHeader>
             <CardContent className="space-y-4">
-              {summary.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+              {summary.isLoading && (
+                <div className="space-y-4">
+                  <Skeleton className="h-12 w-3/4" />
+                  <Skeleton className="h-12 w-2/3" />
+                </div>
+              )}
               {summary.isError && <p className="text-sm text-destructive">Failed to load summary.</p>}
               {summary.data && (
                 <>
@@ -131,7 +139,7 @@ export default function Reports() {
                       <Receipt className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-2xl font-semibold text-foreground">{summary.data.transactionCount} transactions</p>
+                      <p key={summary.data.transactionCount} className="animate-fade-up text-2xl font-semibold tabular-nums text-foreground">{summary.data.transactionCount} transactions</p>
                       <p className="text-sm text-muted-foreground">Total count</p>
                     </div>
                   </div>
@@ -140,7 +148,7 @@ export default function Reports() {
                       <DollarSign className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-2xl font-semibold text-foreground">{money(summary.data.totalRevenue)}</p>
+                      <p key={summary.data.totalRevenue} className="animate-fade-up text-2xl font-semibold tabular-nums text-foreground">{money(summary.data.totalRevenue)}</p>
                       <p className="text-sm text-muted-foreground">Total revenue</p>
                     </div>
                   </div>
@@ -158,7 +166,7 @@ export default function Reports() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {topItems.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+              {topItems.isLoading && <TableSkeleton rows={5} cols={4} />}
               {topItems.isError && <p className="text-sm text-destructive">Failed to load top items.</p>}
               {topItems.data && (
                 <Table>
@@ -177,7 +185,7 @@ export default function Reports() {
                       </TableRow>
                     ) : (
                       topItems.data.items.map((it, i) => (
-                        <TableRow key={it.menuItemId}>
+                        <TableRow key={it.menuItemId} {...rowEnter(i)}>
                           <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                           <TableCell className="font-medium">{it.name}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{it.quantitySold}</TableCell>

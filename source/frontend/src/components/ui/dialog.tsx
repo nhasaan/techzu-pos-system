@@ -23,6 +23,12 @@ export function Dialog({ open, onClose, title, description, children, className 
   const [phase, setPhase] = useState<Phase>(open ? 'open' : 'closed');
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  // Latest onClose without re-running the open effect: callers usually pass a new arrow function each
+  // render, and re-running would re-focus the first field on every keystroke.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   // Adjust state while rendering when the prop changes (no extra effect pass).
   if (open && phase !== 'open') setPhase('open');
@@ -39,7 +45,7 @@ export function Dialog({ open, onClose, title, description, children, className 
     const previous = document.activeElement as HTMLElement | null;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
     document.addEventListener('keydown', onKey);
     requestAnimationFrame(() => {
       panelRef.current?.querySelector<HTMLElement>('input, select, textarea, button:not([data-dialog-close])')?.focus();
@@ -49,7 +55,7 @@ export function Dialog({ open, onClose, title, description, children, className 
       document.removeEventListener('keydown', onKey);
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (phase === 'closed') return null;
   const closing = phase === 'closing';

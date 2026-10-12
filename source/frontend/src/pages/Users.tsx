@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { TableSkeleton } from '../components/ui/skeleton';
+import { rowEnter } from '../lib/motion';
 import { Users as UsersIcon, Plus } from 'lucide-react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { listUsers, type User } from '../api/users';
@@ -16,7 +18,7 @@ const PAGE_SIZE = 20;
 function UsersContent() {
   const pager = useCursorPager(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isPlaceholderData } = useQuery({
     queryKey: ['users', pager.cursor, PAGE_SIZE],
     queryFn: () => listUsers({ cursor: pager.cursor, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
@@ -39,11 +41,11 @@ function UsersContent() {
           <CardTitle className="text-base">All users</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading && <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>}
+          {isLoading && <TableSkeleton cols={5} />}
           {isError && <p className="py-8 text-center text-sm text-destructive">Failed to load users.</p>}
           {data && (
             <>
-              <Table>
+              <Table className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Username</TableHead>
@@ -60,8 +62,8 @@ function UsersContent() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((row: User) => (
-                      <TableRow key={row.id}>
+                    data.items.map((row: User, i) => (
+                      <TableRow key={row.id} {...rowEnter(i)}>
                         <TableCell className="font-medium">{row.username}</TableCell>
                         <TableCell className="text-muted-foreground">{ROLE_LABELS[row.role as UserRole] ?? row.role}</TableCell>
                         <TableCell className="text-muted-foreground">{row.outletId ?? '—'}</TableCell>

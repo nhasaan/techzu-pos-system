@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { TableSkeleton } from '../components/ui/skeleton';
+import { rowEnter } from '../lib/motion';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,6 +15,7 @@ import { listSalesByOutlet, createSale, type Sale } from '../api/sales';
 import { listMenuByOutlet } from '../api/menu';
 import { ApiError } from '../lib/api';
 import { useToastStore } from '../store/toast';
+import { Dialog } from '../components/ui/dialog';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -44,7 +47,7 @@ export default function Sales() {
   const [idempotencyKey, setIdempotencyKey] = useState(() => uuid());
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isPlaceholderData } = useQuery({
     queryKey: ['sales', outletId, pager.cursor, PAGE_SIZE],
     queryFn: () => listSalesByOutlet(outletId!, { cursor: pager.cursor, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
@@ -131,11 +134,11 @@ export default function Sales() {
           <CardTitle className="text-base">Transactions</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading && <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>}
+          {isLoading && <TableSkeleton cols={5} />}
           {isError && <p className="py-8 text-center text-sm text-destructive">Failed to load sales.</p>}
           {data && (
             <>
-              <Table>
+              <Table className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Receipt</TableHead>
@@ -152,8 +155,8 @@ export default function Sales() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((row: Sale) => (
-                      <TableRow key={row.id}>
+                    data.items.map((row: Sale, i) => (
+                      <TableRow key={row.id} {...rowEnter(i)}>
                         <TableCell className="font-medium">{row.receiptNumber}</TableCell>
                         <TableCell className="text-muted-foreground">{row.totalAmount}</TableCell>
                         <TableCell className="text-muted-foreground">
@@ -176,39 +179,34 @@ export default function Sales() {
         </CardContent>
       </Card>
 
-      {dialogOpen && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50" onClick={() => setDialogOpen(false)}>
-          <div className="rounded-lg border border-border bg-card p-6 shadow-lg w-full max-w-md max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-foreground mb-4">New sale</h2>
-            <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-3">
-              {errors.root && <p className="text-sm text-destructive" role="alert">{errors.root.message}</p>}
-              <div className="space-y-2">
-                {fields.map((field, i) => (
-                  <div key={field.id} className="flex gap-2 items-end">
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs">Item</Label>
-                      <select {...register(`items.${i}.menuItemId`, { valueAsNumber: true })} className={cn('flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm')}>
-                        <option value={0}>Select</option>
-                        {(menuData?.items ?? []).filter((m) => m.isActive !== false).map((m) => <option key={m.id} value={m.id}>{m.name ?? m.id} — {m.outletPrice ?? m.basePrice}</option>)}
-                      </select>
-                    </div>
-                    <div className="w-20 space-y-1">
-                      <Label className="text-xs">Qty</Label>
-                      <Input type="number" min={1} className="h-8" {...register(`items.${i}.quantity`, { valueAsNumber: true })} />
-                    </div>
-                    <Button type="button" variant="outline" size="sm" onClick={() => remove(i)}>Remove</Button>
-                  </div>
-                ))}
-                <Button type="button" variant="ghost" size="sm" onClick={() => append({ menuItemId: 0, quantity: 1 })} className="gap-1">+ Add line</Button>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} title="New sale">
+        <form onSubmit={handleSubmit((d) => createMutation.mutate(d))} className="space-y-3">
+          {errors.root && <p className="text-sm text-destructive animate-in fade-in-0 slide-in-from-top-1 duration-200" role="alert">{errors.root.message}</p>}
+          <div className="space-y-2">
+            {fields.map((field, i) => (
+              <div key={field.id} className="flex gap-2 items-end">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs">Item</Label>
+                  <select {...register(`items.${i}.menuItemId`, { valueAsNumber: true })} className={cn('flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm')}>
+                    <option value={0}>Select</option>
+                    {(menuData?.items ?? []).filter((m) => m.isActive !== false).map((m) => <option key={m.id} value={m.id}>{m.name ?? m.id} — {m.outletPrice ?? m.basePrice}</option>)}
+                  </select>
+                </div>
+                <div className="w-20 space-y-1">
+                  <Label className="text-xs">Qty</Label>
+                  <Input type="number" min={1} className="h-8" {...register(`items.${i}.quantity`, { valueAsNumber: true })} />
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => remove(i)}>Remove</Button>
               </div>
-              <div className="flex gap-2 justify-end pt-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={createMutation.isPending}>Create</Button>
-              </div>
-            </form>
+            ))}
+            <Button type="button" variant="ghost" size="sm" onClick={() => append({ menuItemId: 0, quantity: 1 })} className="gap-1">+ Add line</Button>
           </div>
-        </div>
-      )}
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={createMutation.isPending}>Create</Button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }

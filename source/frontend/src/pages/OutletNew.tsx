@@ -61,7 +61,7 @@ function OutletNewContent() {
         <CardContent>
           <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
             {errors.root && (
-              <p className="text-sm text-destructive" role="alert">
+              <p className="text-sm text-destructive animate-in fade-in-0 slide-in-from-top-1 duration-200" role="alert">
                 {errors.root.message}
               </p>
             )}
@@ -81,7 +81,7 @@ function OutletNewContent() {
                   <ArrowLeft className="h-4 w-4" />
                   Cancel
                 </Link>
-              <Button type="submit" disabled={mutation.isPending}>
+              <Button type="submit" loading={mutation.isPending}>
                 Create outlet
               </Button>
             </div>

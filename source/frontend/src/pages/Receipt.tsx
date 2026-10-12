@@ -2,6 +2,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getSale } from '../api/sales';
 import { Card, CardContent } from '../components/ui/card';
+import { Skeleton, TableSkeleton } from '../components/ui/skeleton';
+import { rowEnter } from '../lib/motion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
@@ -25,7 +27,19 @@ export default function Receipt() {
     );
   }
 
-  if (isLoading) return <div className="p-6"><p className="text-muted-foreground">Loading…</p></div>;
+  if (isLoading) {
+    return (
+      <div className="p-6 max-w-lg">
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-56" />
+            <TableSkeleton rows={3} cols={4} />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   if (isError || !data) {
     return (
       <div className="p-6">
@@ -37,7 +51,7 @@ export default function Receipt() {
 
   return (
     <div className="p-6 max-w-lg">
-      <Card>
+      <Card className="animate-in fade-in-0 zoom-in-[0.98] duration-300 ease-out-expo">
         <CardContent className="pt-6">
           <h1 className="text-xl font-semibold text-foreground">Receipt #{data.receiptNumber}</h1>
           <p className="text-sm text-muted-foreground mt-1">Outlet {data.outletId} · {data.createdAt ? new Date(data.createdAt).toLocaleString() : '—'}</p>
@@ -51,8 +65,8 @@ export default function Receipt() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.items.map((line) => (
-                <TableRow key={line.id}>
+              {data.items.map((line, i) => (
+                <TableRow key={line.id} {...rowEnter(i)}>
                   <TableCell className="font-medium">{line.itemName ?? `Item #${line.menuItemId}`}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{line.quantity}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{line.priceAtSale}</TableCell>

@@ -43,7 +43,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm border-border shadow-lg">
+      <Card className="w-full max-w-sm border-border shadow-lg animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-3 duration-500 ease-out-expo">
         <CardHeader className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-2xl">
             <LogIn className="h-6 w-6 text-primary" />
@@ -54,7 +54,7 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
             {errors.root && (
-              <p className="text-sm text-destructive" role="alert">
+              <p className="text-sm text-destructive animate-in fade-in-0 slide-in-from-top-1 duration-200" role="alert">
                 {errors.root.message}
               </p>
             )}
@@ -84,7 +84,7 @@ export default function Login() {
                 <p className="text-sm text-destructive">{errors.password.message}</p>
               )}
             </div>
-            <Button type="submit" className="w-full" disabled={mutation.isPending}>
+            <Button type="submit" className="w-full" loading={mutation.isPending}>
               {mutation.isPending ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>

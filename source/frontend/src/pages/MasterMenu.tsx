@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { TableSkeleton } from '../components/ui/skeleton';
+import { rowEnter } from '../lib/motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,6 +13,7 @@ import { listMasterMenu, createMenuItem, assignToOutlet, type MenuItem } from '.
 import { listOutlets } from '../api/outlets';
 import { ApiError } from '../lib/api';
 import { useToastStore } from '../store/toast';
+import { Dialog } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -42,7 +45,7 @@ function MasterMenuContent() {
   const [assignOpen, setAssignOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isPlaceholderData } = useQuery({
     queryKey: ['menu', 'master', pager.cursor, PAGE_SIZE],
     queryFn: () => listMasterMenu({ cursor: pager.cursor, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
@@ -128,11 +131,11 @@ function MasterMenuContent() {
           <CardTitle className="text-base">Master menu items</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading && <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>}
+          {isLoading && <TableSkeleton cols={4} />}
           {isError && <p className="py-8 text-center text-sm text-destructive">Failed to load.</p>}
           {data && (
             <>
-              <Table>
+              <Table className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
@@ -146,8 +149,8 @@ function MasterMenuContent() {
                       <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No items yet.</TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((row: MenuItem) => (
-                      <TableRow key={row.id}>
+                    data.items.map((row: MenuItem, i) => (
+                      <TableRow key={row.id} {...rowEnter(i)}>
                         <TableCell className="font-medium">{row.name ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground">{row.basePrice}</TableCell>
                         <TableCell className="text-muted-foreground">{row.description ?? '—'}</TableCell>
@@ -162,81 +165,63 @@ function MasterMenuContent() {
         </CardContent>
       </Card>
 
-      {addOpen && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50" onClick={() => setAddOpen(false)}>
-          <Card className="w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
-            <CardHeader>
-              <CardTitle>Add menu item</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleCreateSubmit((d) => createMutation.mutate(d))} className="space-y-4">
-                {createErrors.root && <p className="text-sm text-destructive" role="alert">{createErrors.root.message}</p>}
-                <div className="space-y-2">
-                  <Label htmlFor="create-name">Name</Label>
-                  <Input id="create-name" {...regCreate('name')} placeholder="Item name" />
-                  {createErrors.name && <p className="text-sm text-destructive">{createErrors.name.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="create-basePrice">Base price</Label>
-                  <Input id="create-basePrice" {...regCreate('basePrice')} placeholder="e.g. 10.50" />
-                  {createErrors.basePrice && <p className="text-sm text-destructive">{createErrors.basePrice.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="create-description">Description</Label>
-                  <Input id="create-description" {...regCreate('description')} placeholder="Optional" />
-                </div>
-                <div className="flex gap-2 justify-end pt-2">
-                  <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={createMutation.isPending}>Create</Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+      <Dialog open={addOpen} onClose={() => setAddOpen(false)} title="Add menu item">
+      <form onSubmit={handleCreateSubmit((d) => createMutation.mutate(d))} className="space-y-4">
+        {createErrors.root && <p className="text-sm text-destructive animate-in fade-in-0 slide-in-from-top-1 duration-200" role="alert">{createErrors.root.message}</p>}
+        <div className="space-y-2">
+          <Label htmlFor="create-name">Name</Label>
+          <Input id="create-name" {...regCreate('name')} placeholder="Item name" />
+          {createErrors.name && <p className="text-sm text-destructive">{createErrors.name.message}</p>}
         </div>
-      )}
+        <div className="space-y-2">
+          <Label htmlFor="create-basePrice">Base price</Label>
+          <Input id="create-basePrice" {...regCreate('basePrice')} placeholder="e.g. 10.50" />
+          {createErrors.basePrice && <p className="text-sm text-destructive">{createErrors.basePrice.message}</p>}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="create-description">Description</Label>
+          <Input id="create-description" {...regCreate('description')} placeholder="Optional" />
+        </div>
+        <div className="flex gap-2 justify-end pt-2">
+          <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+          <Button type="submit" loading={createMutation.isPending}>Create</Button>
+        </div>
+      </form>
+      </Dialog>
 
-      {assignOpen && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50" onClick={() => setAssignOpen(false)}>
-          <Card className="w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
-            <CardHeader>
-              <CardTitle>Assign to outlet</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleAssignSubmit((d) => assignMutation.mutate({ outletId: d.outletId, menuItemId: d.menuItemId, price: d.price || undefined, isActive: d.isActive }))} className="space-y-4">
-                {assignErrors.root && <p className="text-sm text-destructive" role="alert">{assignErrors.root.message}</p>}
-                <div className="space-y-2">
-                  <Label htmlFor="assign-outletId">Outlet</Label>
-                  <select id="assign-outletId" {...regAssign('outletId', { valueAsNumber: true })} className={cn('flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground')}>
-                    <option value={0}>Select</option>
-                    {outletsData?.items?.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
-                  {assignErrors.outletId && <p className="text-sm text-destructive">{assignErrors.outletId.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assign-menuItemId">Menu item</Label>
-                  <select id="assign-menuItemId" {...regAssign('menuItemId', { valueAsNumber: true })} className={cn('flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground')}>
-                    <option value={0}>Select</option>
-                    {(allMenuData?.items ?? data?.items ?? []).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.basePrice})</option>)}
-                  </select>
-                  {assignErrors.menuItemId && <p className="text-sm text-destructive">{assignErrors.menuItemId.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assign-price">Price override (optional)</Label>
-                  <Input id="assign-price" {...regAssign('price')} placeholder="e.g. 12.00" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="assign-active" {...regAssign('isActive')} className="rounded border-input" />
-                  <Label htmlFor="assign-active" className="font-normal cursor-pointer">Active</Label>
-                </div>
-                <div className="flex gap-2 justify-end pt-2">
-                  <Button type="button" variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={assignMutation.isPending}>Assign</Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+      <Dialog open={assignOpen} onClose={() => setAssignOpen(false)} title="Assign to outlet">
+      <form onSubmit={handleAssignSubmit((d) => assignMutation.mutate({ outletId: d.outletId, menuItemId: d.menuItemId, price: d.price || undefined, isActive: d.isActive }))} className="space-y-4">
+        {assignErrors.root && <p className="text-sm text-destructive animate-in fade-in-0 slide-in-from-top-1 duration-200" role="alert">{assignErrors.root.message}</p>}
+        <div className="space-y-2">
+          <Label htmlFor="assign-outletId">Outlet</Label>
+          <select id="assign-outletId" {...regAssign('outletId', { valueAsNumber: true })} className={cn('flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground')}>
+            <option value={0}>Select</option>
+            {outletsData?.items?.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+          {assignErrors.outletId && <p className="text-sm text-destructive">{assignErrors.outletId.message}</p>}
         </div>
-      )}
+        <div className="space-y-2">
+          <Label htmlFor="assign-menuItemId">Menu item</Label>
+          <select id="assign-menuItemId" {...regAssign('menuItemId', { valueAsNumber: true })} className={cn('flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground')}>
+            <option value={0}>Select</option>
+            {(allMenuData?.items ?? data?.items ?? []).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.basePrice})</option>)}
+          </select>
+          {assignErrors.menuItemId && <p className="text-sm text-destructive">{assignErrors.menuItemId.message}</p>}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="assign-price">Price override (optional)</Label>
+          <Input id="assign-price" {...regAssign('price')} placeholder="e.g. 12.00" />
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="assign-active" {...regAssign('isActive')} className="rounded border-input" />
+          <Label htmlFor="assign-active" className="font-normal cursor-pointer">Active</Label>
+        </div>
+        <div className="flex gap-2 justify-end pt-2">
+          <Button type="button" variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
+          <Button type="submit" loading={assignMutation.isPending}>Assign</Button>
+        </div>
+      </form>
+      </Dialog>
     </div>
   );
 }

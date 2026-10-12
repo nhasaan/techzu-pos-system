@@ -80,7 +80,7 @@ function UserNewContent() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit((d) => mutation.mutate({ ...d, outletId: d.outletId }))} className="space-y-4">
-            {errors.root && <p className="text-sm text-destructive" role="alert">{errors.root.message}</p>}
+            {errors.root && <p className="text-sm text-destructive animate-in fade-in-0 slide-in-from-top-1 duration-200" role="alert">{errors.root.message}</p>}
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input id="username" {...register('username')} placeholder="Username" />
@@ -112,7 +112,7 @@ function UserNewContent() {
                 <ArrowLeft className="h-4 w-4" />
                 Cancel
               </Link>
-              <Button type="submit" disabled={mutation.isPending}>Create user</Button>
+              <Button type="submit" loading={mutation.isPending}>Create user</Button>
             </div>
           </form>
         </CardContent>

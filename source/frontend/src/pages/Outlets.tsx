@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { TableSkeleton } from '../components/ui/skeleton';
+import { rowEnter } from '../lib/motion';
 import { Store, Plus } from 'lucide-react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import RequireHQOrSuperadmin from '../components/RequireHQOrSuperadmin';
@@ -15,7 +17,7 @@ const PAGE_SIZE = 20;
 function OutletsContent() {
   const pager = useCursorPager(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isPlaceholderData } = useQuery({
     queryKey: ['outlets', pager.cursor, PAGE_SIZE],
     queryFn: () => listOutlets({ cursor: pager.cursor, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
@@ -39,15 +41,13 @@ function OutletsContent() {
           <CardTitle className="text-base">All outlets</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading && (
-            <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
-          )}
+          {isLoading && <TableSkeleton cols={3} />}
           {isError && (
             <p className="py-8 text-center text-sm text-destructive">Failed to load outlets.</p>
           )}
           {data && (
             <>
-              <Table>
+              <Table className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
@@ -62,8 +62,8 @@ function OutletsContent() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((o: Outlet) => (
-                      <TableRow key={o.id}>
+                    data.items.map((o: Outlet, i) => (
+                      <TableRow key={o.id} {...rowEnter(i)}>
                         <TableCell className="font-medium">{o.name}</TableCell>
                         <TableCell className="text-muted-foreground">{o.address ?? '—'}</TableCell>
                       </TableRow>

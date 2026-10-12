@@ -1,4 +1,7 @@
 import { UtensilsCrossed } from 'lucide-react';
+import { TableSkeleton } from '../components/ui/skeleton';
+import { rowEnter } from '../lib/motion';
+import { cn } from '../lib/utils';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth';
 import { ROLE_OUTLET } from '../constants/roles';
@@ -18,7 +21,7 @@ export default function Menu() {
   const outletId = user?.role === ROLE_OUTLET ? user?.outletId ?? null : selectedOutletId;
   const pager = useCursorPager(outletId);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isPlaceholderData } = useQuery({
     queryKey: ['menu', 'outlet', outletId, pager.cursor, PAGE_SIZE],
     queryFn: () => listMenuByOutlet(outletId!, { cursor: pager.cursor, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
@@ -52,11 +55,11 @@ export default function Menu() {
           <CardTitle className="text-base">Outlet menu</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading && <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>}
+          {isLoading && <TableSkeleton cols={4} />}
           {isError && <p className="py-8 text-center text-sm text-destructive">Failed to load menu.</p>}
           {data && (
             <>
-              <Table>
+              <Table className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
@@ -72,8 +75,8 @@ export default function Menu() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((row: OutletMenuItem) => (
-                      <TableRow key={row.id}>
+                    data.items.map((row: OutletMenuItem, i) => (
+                      <TableRow key={row.id} {...rowEnter(i)}>
                         <TableCell className="font-medium">{row.name ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {row.outletPrice ?? row.basePrice}

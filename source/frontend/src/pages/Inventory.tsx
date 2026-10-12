@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { TableSkeleton } from '../components/ui/skeleton';
+import { rowEnter } from '../lib/motion';
 import { Package, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +14,7 @@ import { adjustStock, listInventoryByOutlet, setStock, type InventoryRow } from 
 import { listMenuByOutlet } from '../api/menu';
 import { ApiError } from '../lib/api';
 import { useToastStore } from '../store/toast';
+import { Dialog } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -41,7 +44,7 @@ export default function Inventory() {
   const [mode, setMode] = useState<StockMode>('adjust');
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isPlaceholderData } = useQuery({
     queryKey: ['inventory', outletId, pager.cursor, PAGE_SIZE],
     queryFn: () => listInventoryByOutlet(outletId!, { cursor: pager.cursor, limit: PAGE_SIZE }),
     placeholderData: keepPreviousData,
@@ -121,11 +124,11 @@ export default function Inventory() {
           <CardTitle className="text-base">Stock by outlet</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading && <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>}
+          {isLoading && <TableSkeleton cols={4} />}
           {isError && <p className="py-8 text-center text-sm text-destructive">Failed to load inventory.</p>}
           {data && (
             <>
-              <Table>
+              <Table className={cn('transition-opacity duration-200', isPlaceholderData && 'opacity-60')}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Menu item</TableHead>
@@ -141,8 +144,8 @@ export default function Inventory() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data.items.map((row: InventoryRow) => (
-                      <TableRow key={row.id}>
+                    data.items.map((row: InventoryRow, i) => (
+                      <TableRow key={row.id} {...rowEnter(i)}>
                         <TableCell className="font-medium">{rowItemName(row)}</TableCell>
                         <TableCell className="text-muted-foreground">{row.stock}</TableCell>
                         <TableCell className="text-muted-foreground">
@@ -159,50 +162,45 @@ export default function Inventory() {
         </CardContent>
       </Card>
 
-      {dialogOpen && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50" onClick={() => setDialogOpen(false)}>
-          <div className="rounded-lg border border-border bg-card p-6 shadow-lg w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-foreground mb-4">Update stock</h2>
-            <form
-              onSubmit={handleSubmit((d) => {
-                if (mode === 'set' && d.stock < 0) return setError('stock', { message: 'Stock must be ≥ 0' });
-                if (mode === 'adjust' && d.stock === 0) return setError('stock', { message: 'Enter a non-zero change' });
-                setStockMutation.mutate(d);
-              })}
-              className="space-y-4"
-            >
-              <div className="flex gap-4 text-sm">
-                <label className="flex items-center gap-1.5">
-                  <input type="radio" name="stock-mode" checked={mode === 'adjust'} onChange={() => setMode('adjust')} />
-                  Add / remove
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <input type="radio" name="stock-mode" checked={mode === 'set'} onChange={() => setMode('set')} />
-                  Set exact count
-                </label>
-              </div>
-              {errors.root && <p className="text-sm text-destructive" role="alert">{errors.root.message}</p>}
-              <div className="space-y-2">
-                <Label>Menu item</Label>
-                <select {...register('menuItemId', { valueAsNumber: true })} className={cn('flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm')}>
-                  <option value={0}>Select</option>
-                  {menuItems.map((m) => <option key={m.id} value={m.id}>{m.name ?? m.id}</option>)}
-                </select>
-                {errors.menuItemId && <p className="text-sm text-destructive">{errors.menuItemId.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>{mode === 'adjust' ? 'Change (e.g. 24 delivered, -2 wasted)' : 'Counted stock'}</Label>
-                <Input type="number" {...(mode === 'set' ? { min: 0 } : {})} {...register('stock', { valueAsNumber: true })} />
-                {errors.stock && <p className="text-sm text-destructive">{errors.stock.message}</p>}
-              </div>
-              <div className="flex gap-2 justify-end pt-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={setStockMutation.isPending}>Save</Button>
-              </div>
-            </form>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} title="Update stock">
+        <form
+          onSubmit={handleSubmit((d) => {
+            if (mode === 'set' && d.stock < 0) return setError('stock', { message: 'Stock must be ≥ 0' });
+            if (mode === 'adjust' && d.stock === 0) return setError('stock', { message: 'Enter a non-zero change' });
+            setStockMutation.mutate(d);
+          })}
+          className="space-y-4"
+        >
+          <div className="flex gap-4 text-sm">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="stock-mode" checked={mode === 'adjust'} onChange={() => setMode('adjust')} />
+              Add / remove
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" name="stock-mode" checked={mode === 'set'} onChange={() => setMode('set')} />
+              Set exact count
+            </label>
           </div>
-        </div>
-      )}
+          {errors.root && <p className="text-sm text-destructive animate-in fade-in-0 slide-in-from-top-1 duration-200" role="alert">{errors.root.message}</p>}
+          <div className="space-y-2">
+            <Label>Menu item</Label>
+            <select {...register('menuItemId', { valueAsNumber: true })} className={cn('flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm')}>
+              <option value={0}>Select</option>
+              {menuItems.map((m) => <option key={m.id} value={m.id}>{m.name ?? m.id}</option>)}
+            </select>
+            {errors.menuItemId && <p className="text-sm text-destructive">{errors.menuItemId.message}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>{mode === 'adjust' ? 'Change (e.g. 24 delivered, -2 wasted)' : 'Counted stock'}</Label>
+            <Input type="number" {...(mode === 'set' ? { min: 0 } : {})} {...register('stock', { valueAsNumber: true })} />
+            {errors.stock && <p className="text-sm text-destructive">{errors.stock.message}</p>}
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={setStockMutation.isPending}>Save</Button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }

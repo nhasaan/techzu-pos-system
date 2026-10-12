@@ -12,7 +12,7 @@ export default function Dashboard() {
         <LayoutDashboard className="h-7 w-7 text-primary" />
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
       </div>
-      <Card className="max-w-md">
+      <Card className="max-w-md animate-fade-up">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <User className="h-5 w-5 text-muted-foreground" />
