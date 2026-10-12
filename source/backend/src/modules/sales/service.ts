@@ -34,19 +34,19 @@ export interface CreateSaleOptions {
  */
 export async function createSale(outletId: number, items: SaleItemInput[], opts: CreateSaleOptions = {}) {
   const key = opts.idempotencyKey ?? null;
+  const lines = mergeLines(items);
   if (key) {
     const existing = await salesRepository.findByIdempotencyKey(outletId, key);
-    if (existing) return { ...(await getCreatedSale(existing.id)), replayed: true };
+    if (existing) return { ...(await replay(existing.id, lines)), replayed: true };
   }
 
-  const lines = mergeLines(items);
   const ids = lines.map((l) => l.menuItemId);
 
   try {
     const created = await db.transaction(async (tx) => {
-      const prices = new Map(
-        (await salesRepository.findSellablePrices(tx, outletId, ids)).map((p) => [p.menuItemId, p.price]),
-      );
+      const sellable = await salesRepository.findSellablePrices(tx, outletId, ids);
+      const prices = new Map(sellable.map((p) => [p.menuItemId, p.price]));
+      const names = new Map(sellable.map((p) => [p.menuItemId, p.name]));
       const missing = ids.filter((id) => !prices.has(id));
       if (missing.length) {
         throw new ValidationError(`Menu item ${missing[0]} not found or not available for this outlet`, {
@@ -85,23 +85,37 @@ export async function createSale(outletId: number, items: SaleItemInput[], opts:
           priceAtSale: fromCents(toCents(prices.get(l.menuItemId)!)),
         })),
       );
-      return { sale, items: saleItemRows, receiptNumber: sale.receiptNumber, totalAmount };
+      // Same item shape as the receipt endpoint and idempotent replays.
+      const itemsWithNames = saleItemRows.map((r) => ({ ...r, itemName: names.get(r.menuItemId) ?? null }));
+      return { sale, items: itemsWithNames, receiptNumber: sale.receiptNumber, totalAmount };
     });
     return { ...created, replayed: false };
   } catch (err) {
     // Two concurrent requests with the same Idempotency-Key: the loser returns the winner's sale.
     if (key && isUniqueViolation(err, IDEMPOTENCY_CONSTRAINT)) {
       const existing = await salesRepository.findByIdempotencyKey(outletId, key);
-      if (existing) return { ...(await getCreatedSale(existing.id)), replayed: true };
+      if (existing) return { ...(await replay(existing.id, lines)), replayed: true };
     }
     throw err;
   }
 }
 
-async function getCreatedSale(saleId: number) {
+/**
+ * Returns the sale previously created with this Idempotency-Key. The key must identify the same
+ * request: reusing it for a different basket is a client bug, so it is rejected instead of
+ * silently returning (and the client treating as paid) a sale with other items.
+ */
+async function replay(saleId: number, lines: { menuItemId: number; quantity: number }[]) {
   const sale = await salesRepository.findById(saleId);
   if (!sale) throw new NotFoundError('Sale not found', { saleId: 'Not found' });
   const items = await salesRepository.findItemsWithNames(saleId);
+  const stored = items.map((i) => `${i.menuItemId}:${i.quantity}`).sort().join(',');
+  const requested = lines.map((l) => `${l.menuItemId}:${l.quantity}`).sort().join(',');
+  if (stored !== requested) {
+    throw new ValidationError('Idempotency-Key was already used for a different sale', {
+      'Idempotency-Key': 'Already used with different items',
+    });
+  }
   return { sale, items, receiptNumber: sale.receiptNumber, totalAmount: sale.totalAmount };
 }
 

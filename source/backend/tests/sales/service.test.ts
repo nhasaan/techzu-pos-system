@@ -135,6 +135,20 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
       expect(results.filter((r) => r.headers['idempotent-replayed'] === 'true')).toHaveLength(2);
     });
 
+    it('rejects reusing an Idempotency-Key for a different sale', async () => {
+      const res = await api()
+        .post('/api/sales')
+        .set(bearer(outletAdmin))
+        .set('Idempotency-Key', 'order-abc-1')
+        .send({ items: [{ menuItemId: item.Bagel, quantity: 5 }] });
+      expect(res.status).toBe(422);
+    });
+
+    it('returns item names in the create response, same shape as the receipt', async () => {
+      const res = await api().post('/api/sales').set(bearer(outletAdmin)).send({ items: [{ menuItemId: item.Bagel, quantity: 1 }] }).expect(201);
+      expect(res.body.data.items[0].itemName).toBe('Bagel');
+    });
+
     it('returns the receipt with item names', async () => {
       const list = await api().get(`/api/sales/outlet/${mainId}`).set(bearer(outletAdmin)).expect(200);
       const saleId = list.body.data.items[0].id;
@@ -146,14 +160,14 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
   describe('reports', () => {
     it('summarises revenue for an outlet', async () => {
       const res = await api().get(`/api/reports/outlet/${mainId}/summary`).set(bearer(hq)).expect(200);
-      // 20 x 11.00 + 1 x 3.25 + 1 x 3.25 (idempotent sale)
-      expect(res.body.data).toMatchObject({ outletId: mainId, transactionCount: 22, totalRevenue: 226.5 });
+      // 20 x 11.00 + 3 single-bagel sales x 3.25 (incl. the idempotent one)
+      expect(res.body.data).toMatchObject({ outletId: mainId, transactionCount: 23, totalRevenue: 229.75 });
     });
 
     it('lists top items by quantity', async () => {
       const res = await api().get(`/api/reports/outlet/${mainId}/top-items`).set(bearer(outletAdmin)).expect(200);
       expect(res.body.data.items.map((i: { name: string; quantitySold: number }) => [i.name, i.quantitySold])).toEqual([
-        ['Bagel', 42],
+        ['Bagel', 43],
         ['Latte', 20],
       ]);
     });

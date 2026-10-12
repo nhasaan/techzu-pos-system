@@ -17,6 +17,7 @@ export const salesRepository = {
     return exec
       .select({
         menuItemId: outletMenuItems.menuItemId,
+        name: menuItems.name,
         price: sql<string>`COALESCE(${outletMenuItems.price}, ${menuItems.basePrice})`,
       })
       .from(outletMenuItems)
