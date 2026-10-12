@@ -8,7 +8,7 @@ import { useQuery, useMutation, keepPreviousData, useQueryClient } from '@tansta
 import { useAuthStore } from '../store/auth';
 import { useOutletStore } from '../store/outlet';
 import Pagination from '../components/Pagination';
-import { useCursorPager } from '../lib/pagination';
+import { fetchAllPages, useCursorPager } from '../lib/pagination';
 import { listSalesByOutlet, createSale, type Sale } from '../api/sales';
 import { listMenuByOutlet } from '../api/menu';
 import { ApiError } from '../lib/api';
@@ -52,8 +52,8 @@ export default function Sales() {
   });
 
   const { data: menuData } = useQuery({
-    queryKey: ['menu', 'outlet', outletId, 1, 100],
-    queryFn: () => listMenuByOutlet(outletId!, { limit: 100 }),
+    queryKey: ['menu', 'outlet', outletId, 'all'],
+    queryFn: () => fetchAllPages((p) => listMenuByOutlet(outletId!, p)),
     enabled: outletId != null && dialogOpen,
   });
 

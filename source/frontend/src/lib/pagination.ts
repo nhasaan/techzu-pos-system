@@ -36,3 +36,23 @@ export function useCursorPager(scope: unknown = null) {
     prev: () => setState({ scope, stack: stack.length > 1 ? stack.slice(0, -1) : stack }),
   };
 }
+
+/**
+ * Loads every page of a list by following cursors. For pickers over naturally bounded lists (an
+ * outlet's menu, the outlets): a single `limit: 100` request silently dropped everything after the
+ * 100th row, so item 101 could never be sold, stocked or assigned. Capped as a safety net.
+ */
+export async function fetchAllPages<T>(
+  fetchPage: (params: ListParams) => Promise<CursorPage<T>>,
+  maxPages = 50,
+): Promise<{ items: T[] }> {
+  const items: T[] = [];
+  let cursor: string | undefined;
+  for (let i = 0; i < maxPages; i++) {
+    const page = await fetchPage({ cursor, limit: 100 });
+    items.push(...page.items);
+    if (!page.nextCursor) break;
+    cursor = page.nextCursor;
+  }
+  return { items };
+}

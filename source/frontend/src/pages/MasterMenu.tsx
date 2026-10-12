@@ -6,7 +6,7 @@ import { useQuery, useMutation, keepPreviousData, useQueryClient } from '@tansta
 import { UtensilsCrossed, Plus, Link2 } from 'lucide-react';
 import RequireHQOrSuperadmin from '../components/RequireHQOrSuperadmin';
 import Pagination from '../components/Pagination';
-import { useCursorPager } from '../lib/pagination';
+import { fetchAllPages, useCursorPager } from '../lib/pagination';
 import { listMasterMenu, createMenuItem, assignToOutlet, type MenuItem } from '../api/menu';
 import { listOutlets } from '../api/outlets';
 import { ApiError } from '../lib/api';
@@ -49,13 +49,13 @@ function MasterMenuContent() {
   });
 
   const { data: outletsData } = useQuery({
-    queryKey: ['outlets', 1, 100],
-    queryFn: () => listOutlets({ limit: 100 }),
+    queryKey: ['outlets', 'all'],
+    queryFn: () => fetchAllPages(listOutlets),
   });
 
   const { data: allMenuData } = useQuery({
-    queryKey: ['menu', 'master', 1, 100],
-    queryFn: () => listMasterMenu({ limit: 100 }),
+    queryKey: ['menu', 'master', 'all'],
+    queryFn: () => fetchAllPages(listMasterMenu),
     enabled: assignOpen,
   });
 

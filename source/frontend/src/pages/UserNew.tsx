@@ -1,3 +1,4 @@
+import { fetchAllPages } from '../lib/pagination';
 import { useNavigate, Link } from 'react-router-dom';
 import { Users as UsersIcon, ArrowLeft } from 'lucide-react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -42,8 +43,8 @@ function UserNewContent() {
   const role = useWatch({ control, name: 'role' });
 
   const { data: outletsData } = useQuery({
-    queryKey: ['outlets', 1, 100],
-    queryFn: () => listOutlets({ limit: 100 }),
+    queryKey: ['outlets', 'all'],
+    queryFn: () => fetchAllPages(listOutlets),
   });
 
   const mutation = useMutation({

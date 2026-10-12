@@ -1,4 +1,5 @@
 import { ChevronDown, Store } from 'lucide-react';
+import { fetchAllPages } from '../lib/pagination';
 import { useQuery } from '@tanstack/react-query';
 import { listOutlets } from '../api/outlets';
 import { useOutletStore } from '../store/outlet';
@@ -13,8 +14,8 @@ export default function OutletSelector() {
 
   const isHQOrSuperadmin = user?.role === ROLE_HQ || user?.role === ROLE_SUPERADMIN;
   const { data, isLoading } = useQuery({
-    queryKey: ['outlets', 1, 100],
-    queryFn: () => listOutlets({ limit: 100 }),
+    queryKey: ['outlets', 'all'],
+    queryFn: () => fetchAllPages(listOutlets),
     enabled: isHQOrSuperadmin,
   });
 
