@@ -134,7 +134,7 @@ Every response uses one envelope:
 | Method | Path | Who | Description |
 |---|---|---|---|
 | POST | `/auth/login` | public | `{ username, password }` returns `{ accessToken, refreshToken }` |
-| POST | `/auth/refresh` | public | `{ refreshToken }` returns a new pair. Each refresh token works once; reuse revokes all sessions |
+| POST | `/auth/refresh` | public | `{ refreshToken }` returns a new pair. Each refresh token works once; a later reuse revokes all sessions |
 | POST | `/auth/logout` | any | Revokes the current session |
 | GET | `/outlets` | HQ, superadmin | List outlets (paginated) |
 | POST | `/outlets` | HQ, superadmin | `{ name, address? }` |
@@ -146,7 +146,7 @@ Every response uses one envelope:
 | GET | `/menu/outlet/:outletId` | HQ; outlet admin (own outlet) | Only the items assigned to the outlet, with `outletPrice` and `isActive` |
 | PUT | `/inventory` | HQ; outlet admin (own outlet) | `{ outletId, menuItemId, stock }` (stock ≥ 0) |
 | GET | `/inventory/outlet/:outletId` | HQ; outlet admin (own outlet) | Stock per item |
-| POST | `/sales` | HQ (send `outletId`); outlet admin | `{ items: [{ menuItemId, quantity }] }`. Optional `Idempotency-Key` header. Returns 201 `{ sale, items, receiptNumber, totalAmount }`. Returns 409 on insufficient stock and 422 for items not sold at the outlet |
+| POST | `/sales` | HQ (send `outletId`); outlet admin | `{ items: [{ menuItemId, quantity }] }`. Optional `Idempotency-Key` header (same key + same items returns the original sale; same key + different items returns 422). Returns 201 `{ sale, items, receiptNumber, totalAmount }`. Returns 409 on insufficient stock and 422 for items not sold at the outlet |
 | GET | `/sales/outlet/:outletId` | HQ; outlet admin (own outlet) | Sales, newest first (paginated) |
 | GET | `/sales/:saleId` | HQ; outlet admin (own outlet) | Receipt with line items |
 | GET | `/reports/revenue-by-outlet` | HQ (all outlets); outlet admin (own) | **Total revenue by outlet** `?dateFrom=&dateTo=` |
@@ -196,7 +196,7 @@ All of these run inside one database transaction per sale:
   3. all lines are deducted in one `UPDATE`
   4. `CHECK (stock >= 0)` backs it up at the database level
 - **Sequential receipts per outlet under concurrency:** `UPDATE outlets SET receipt_seq = receipt_seq + 1 … RETURNING`. The row lock serialises sales within one outlet, and a rolled-back sale gives its number back, so the series has no gaps. Different outlets never block each other.
-- **Safe retries:** sending the same `Idempotency-Key` returns the original sale instead of creating a second one.
+- **Safe retries:** sending the same `Idempotency-Key` returns the original sale instead of creating a second one. Reusing a key for a different basket is rejected with 422.
 
 Integration tests cover all of this. For example, 40 concurrent sales against a stock of 20 produce exactly 20 sales with receipts 1–20, and stock ends at 0.
 

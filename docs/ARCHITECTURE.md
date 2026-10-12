@@ -79,6 +79,7 @@ Rules followed:
   - The JWT signature is verified before any I/O, so forged tokens cost no Redis or DB round trip.
 - **Refresh rotation with reuse detection:**
   - Each refresh token works once, enforced by a single conditional `UPDATE … WHERE status = 'active'`.
+  - Two near-simultaneous refreshes with the same token (two tabs, a retried request) are not treated as theft: within 10 seconds of first use the second just gets 401.
   - Presenting a consumed token revokes and blacklists every session of that user.
   - The user's role and outlet are re-read from the database on refresh.
 - **Logout:** blacklists the session id in Redis for the remaining access-token lifetime and revokes it in the DB. Redis keeps a "blacklist loaded" marker; if it is missing (Redis restarted without persistence, was flushed, or evicted keys), revocation checks fall back to Postgres and the blacklist is rebuilt from recently revoked sessions. A Redis restart therefore can't bring logged-out tokens back to life.
