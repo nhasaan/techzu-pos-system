@@ -3,6 +3,7 @@ import { createApp } from './app';
 import { config } from './shared/config';
 import { pool } from './shared/db';
 import { logger } from './shared/utils/logger';
+import { closeRedis } from './shared/utils/redis';
 
 const app = createApp();
 const server = http.createServer(app);
@@ -31,7 +32,7 @@ async function shutdown(signal: string) {
   // Stop accepting new connections, let in-flight requests finish, then release resources.
   server.close(async () => {
     try {
-      await pool.end();
+      await Promise.allSettled([pool.end(), closeRedis()]);
     } finally {
       logger.info('Shutdown complete');
       process.exit(0);

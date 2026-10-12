@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pingDb } from '../../shared/db';
+import { isRedisReady } from '../../shared/utils/redis';
 import { success, fail } from '../../shared/utils/response';
 
 export const healthRouter = Router();
@@ -18,6 +19,8 @@ healthRouter.get('/health/ready', async (_req, res) => {
   } catch {
     checks.database = 'down';
   }
-  const ok = Object.values(checks).every((s) => s === 'up');
+  const ok = checks.database === 'up';
+  // Redis is optional (the API degrades gracefully without it), so it is reported but not gating.
+  checks.redis = isRedisReady() ? 'up' : 'down';
   res.status(ok ? 200 : 503).json(ok ? success('ready', checks) : fail('not ready', checks));
 });

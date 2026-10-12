@@ -1,0 +1,94 @@
+import argon2 from 'argon2';
+import { config } from '../../shared/config';
+import { db } from '../../shared/db';
+import { UnauthorizedError } from '../../shared/utils/errors';
+import { issueTokenPair, verifyToken, type SessionSubject } from '../../shared/utils/jwt';
+import { logger } from '../../shared/utils/logger';
+import { cacheGet, cacheSet, isRedisReady } from '../../shared/utils/redis';
+import { authRepository } from './repository';
+
+const blacklistKey = (jti: string) => `bl:${jti}`;
+
+// Verifying against a real hash when the user does not exist keeps response time constant,
+// so login timing cannot be used to enumerate usernames.
+let dummyHash: Promise<string> | null = null;
+const getDummyHash = () => (dummyHash ??= argon2.hash('timing-equaliser-not-a-real-password'));
+
+const toSubject = (u: { id: number; username: string; role: SessionSubject['role']; outletId: number | null }) => ({
+  id: u.id,
+  username: u.username,
+  role: u.role,
+  outletId: u.outletId,
+});
+
+async function startSession(user: SessionSubject) {
+  const pair = issueTokenPair(user);
+  const expiresAt = new Date(Date.now() + config.tokens.refreshTtlSec * 1000);
+  return { pair, expiresAt };
+}
+
+export async function login(username: string, password: string) {
+  const user = await authRepository.findUserByUsername(username);
+  const valid = await argon2.verify(user?.passwordHash ?? (await getDummyHash()), password).catch(() => false);
+  if (!user || !valid) throw new UnauthorizedError('Invalid credentials', { credentials: 'Invalid credentials' });
+
+  const { pair, expiresAt } = await startSession(toSubject(user));
+  await authRepository.insertSession(db, user.id, pair.jti, expiresAt);
+  return { accessToken: pair.accessToken, refreshToken: pair.refreshToken };
+}
+
+/**
+ * Refresh-token rotation with reuse detection: each refresh token works once. Presenting an
+ * already-consumed token means it was stolen or replayed, so every session of that user is revoked.
+ */
+export async function refresh(refreshToken: string) {
+  const claims = verifyToken(refreshToken, 'refresh');
+  if (!claims) throw new UnauthorizedError('Invalid refresh token', { token: 'Invalid refresh token' });
+
+  const result = await db.transaction(async (tx) => {
+    const consumed = await authRepository.consumeActiveSession(tx, claims.jti);
+    if (!consumed) return null;
+    // Re-read the user so role / outlet changes (or deletion) take effect on refresh.
+    const user = await authRepository.findUserById(consumed.userId);
+    if (!user) return null;
+    const { pair, expiresAt } = await startSession(toSubject(user));
+    await authRepository.insertSession(tx, user.id, pair.jti, expiresAt);
+    return pair;
+  });
+  if (result) return { accessToken: result.accessToken, refreshToken: result.refreshToken };
+
+  const session = await authRepository.findSessionByJti(claims.jti);
+  if (session?.status === 'consumed') {
+    const jtis = await authRepository.revokeAllSessions(session.userId);
+    await Promise.all(jtis.map((jti) => blacklist(jti, config.tokens.accessTtlSec)));
+    logger.warn({ userId: session.userId }, 'Refresh token reuse detected; all sessions revoked');
+    throw new UnauthorizedError('Token reuse detected. All sessions revoked.', { token: 'Reused' });
+  }
+  if (session?.status === 'revoked') throw new UnauthorizedError('Token revoked', { token: 'Revoked' });
+  throw new UnauthorizedError('Invalid refresh token', { token: 'Invalid refresh token' });
+}
+
+export async function logout(jti: string, accessExp: number) {
+  const ttl = Math.max(1, accessExp - Math.floor(Date.now() / 1000));
+  await blacklist(jti, ttl);
+  await authRepository.revokeSession(jti);
+}
+
+async function blacklist(jti: string, ttlSec: number) {
+  const ok = await cacheSet(blacklistKey(jti), '1', ttlSec);
+  if (!ok) logger.warn({ jti }, 'Could not write token blacklist to Redis; relying on DB revocation');
+}
+
+/**
+ * Hot path (every authenticated request). Redis answers when available; if Redis is down we
+ * fall back to the sessions table so logout / revocation is still enforced.
+ */
+export async function isSessionRevoked(jti: string): Promise<boolean> {
+  if (isRedisReady()) {
+    const hit = await cacheGet(blacklistKey(jti));
+    if (hit !== null) return true;
+    if (isRedisReady()) return false;
+  }
+  const session = await authRepository.findSessionByJti(jti);
+  return session?.status === 'revoked';
+}
