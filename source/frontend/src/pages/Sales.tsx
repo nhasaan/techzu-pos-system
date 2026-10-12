@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import { cn } from '../lib/utils';
+import { cn, uuid } from '../lib/utils';
 import { ROLE_OUTLET } from '../constants/roles';
 
 const lineSchema = z.object({
@@ -40,7 +40,7 @@ export default function Sales() {
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   // One key per checkout attempt; rotated after a successful sale.
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [idempotencyKey, setIdempotencyKey] = useState(() => uuid());
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -73,7 +73,7 @@ export default function Sales() {
         idempotencyKey,
       ),
     onSuccess: () => {
-      setIdempotencyKey(crypto.randomUUID());
+      setIdempotencyKey(uuid());
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       reset({ items: [{ menuItemId: 0, quantity: 1 }] });
       setDialogOpen(false);

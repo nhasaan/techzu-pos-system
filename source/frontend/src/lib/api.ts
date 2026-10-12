@@ -1,3 +1,4 @@
+import { uuid } from './utils';
 const getBaseUrl = () => import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 const API_PREFIX = 'api';
 
@@ -32,7 +33,7 @@ async function doRefresh(refreshTokenValue: string): Promise<RefreshPayload> {
   const url = `${base}/${API_PREFIX}/auth/refresh`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-request-id': crypto.randomUUID() },
+    headers: { 'Content-Type': 'application/json', 'x-request-id': uuid() },
     body: JSON.stringify({ refreshToken: refreshTokenValue }),
   });
   const data = await res.json().catch(() => ({}));
@@ -79,7 +80,7 @@ async function request<T>(path: string, url: string, init: RequestInit): Promise
     ...(init.headers as Record<string, string>),
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    'x-request-id': crypto.randomUUID(),
+    'x-request-id': uuid(),
   };
   const res = await fetch(url, { ...init, headers });
   const data = res.status === 204 ? {} : await res.json().catch(() => ({}));
