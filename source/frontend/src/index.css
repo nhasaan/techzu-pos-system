@@ -47,10 +47,43 @@
   * {
     border-color: hsl(var(--border));
   }
+  html {
+    /* Reserve the scrollbar's space so pages don't shift sideways when content grows. */
+    scrollbar-gutter: stable;
+  }
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  /* Staggered entrance for list rows; delay comes from an inline --row-delay. */
+  .row-enter {
+    animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--row-delay, 0ms);
+  }
+}
+
+/* Applied for a moment while switching theme, so colours cross-fade instead of flashing. */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, fill 0.25s ease !important;
+}
+
+/* Respect the OS "reduce motion" setting everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

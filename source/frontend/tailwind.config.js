@@ -39,6 +39,22 @@ export default {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      keyframes: {
+        'fade-up': {
+          from: { opacity: '0', transform: 'translateY(6px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        },
+      },
+      animation: {
+        'fade-up': 'fade-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) both',
+        shimmer: 'shimmer 1.4s infinite',
+      },
+      transitionTimingFunction: {
+        'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+      },
     },
   },
   plugins: [tailwindcssAnimate],
