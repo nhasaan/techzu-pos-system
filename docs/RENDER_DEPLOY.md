@@ -1,0 +1,43 @@
+# Deploying to Render
+
+The repository includes a Render Blueprint, [`render.yaml`](../render.yaml). It creates:
+
+| Resource       | Type                 | Notes                                                       |
+|----------------|----------------------|-------------------------------------------------------------|
+| `pos-db`       | PostgreSQL (free)    | Free databases expire after 30 days                         |
+| `pos-redis`    | Key Value (free)     | Internal only (`ipAllowList: []`)                           |
+| `pos-backend`  | Web service, Node 24 | Runs migrations and the idempotent seed, then starts the API |
+| `pos-frontend` | Static site          | SPA rewrite, long cache on hashed assets                    |
+
+## Steps
+
+1. Push the repository to GitHub.
+2. In Render, go to **Blueprints → New Blueprint Instance** and select the repository.
+3. When prompted:
+   - **`CORS_ORIGINS`:** the frontend URL, e.g. `https://pos-frontend.onrender.com`. You can fill it in after the first deploy. Left empty, the API accepts any origin, which is acceptable because auth uses bearer tokens, not cookies.
+   - **`SEED_PASSWORD`:** the password for the demo users. If empty, it defaults to `REDACTED`.
+4. Apply. Render provisions the database and Redis, then builds and deploys both services. `JWT_SECRET` is generated automatically.
+5. Open the frontend URL and sign in with one of the demo users from the [README](../README.md#demo-users).
+
+Check the deployment:
+
+- `GET https://<backend>/health/ready` should return `{"database":"up","redis":"up"}`.
+- API docs are at `https://<backend>/docs` (`API_DOCS=true` in the blueprint).
+
+## Notes
+
+- **Cold starts:** free web services sleep after about 15 minutes idle, so the first request can take around a minute.
+- **Migrations on boot** are safe for a single instance. With several instances or a paid plan, move `node dist/shared/db/migrate.js` to a **pre-deploy command** and remove the seed from the start command.
+- **Frontend API URL:** the frontend reads the backend URL at build time (`VITE_API_BASE_URL` from the backend's `RENDER_EXTERNAL_URL`). If the backend URL changes, redeploy the frontend with **Clear build cache & deploy**.
+
+## Other platforms
+
+The same images run anywhere containers run:
+
+```bash
+docker build -f orchestrate/backend/Dockerfile -t pos-backend .
+docker build -f orchestrate/frontend/Dockerfile -t pos-frontend .
+
+docker run --rm -e DATABASE_URL=... -e JWT_SECRET=... pos-backend migrate
+docker run -d -p 3000:3000 -e DATABASE_URL=... -e REDIS_URL=... -e JWT_SECRET=... pos-backend
+```
