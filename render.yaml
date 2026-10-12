@@ -10,7 +10,9 @@ services:
   - type: keyvalue
     name: pos-redis
     plan: free
-    maxmemoryPolicy: allkeys-lru
+    # Never evict: dropping token-blacklist keys would revive logged-out tokens. When full, cache
+    # writes fail and the API falls back to Postgres.
+    maxmemoryPolicy: noeviction
     # Empty allow list = reachable only from services inside this Render account (not the internet).
     ipAllowList: []
 

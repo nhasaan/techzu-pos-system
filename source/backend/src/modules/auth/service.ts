@@ -94,7 +94,12 @@ export async function logout(jti: string, accessExp: number) {
 
 async function blacklist(jti: string, ttlSec: number) {
   const ok = await cacheSet(blacklistKey(jti), '1', ttlSec);
-  if (!ok) logger.warn({ jti }, 'Could not write token blacklist to Redis; relying on DB revocation');
+  if (!ok) {
+    // The blacklist is now incomplete, so cache misses must not be trusted until it is rebuilt from
+    // Postgres. DEL is permitted even when Redis is out of memory.
+    logger.warn({ jti }, 'Could not write token blacklist to Redis; falling back to DB revocation checks');
+    await redis.del(BLACKLIST_LOADED_KEY).catch(() => undefined);
+  }
 }
 
 /**
