@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ApiError } from './lib/api';
+import { PageSkeleton } from './components/ui/skeleton';
 
 // Route-level code splitting: each page is its own chunk, loaded on first visit.
 const Login = lazy(() => import('./pages/Login'));
@@ -31,13 +32,13 @@ const queryClient = new QueryClient({
   },
 });
 
-const PageFallback = () => <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Suspense fallback={<PageFallback />}>
+        <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>

@@ -10,6 +10,7 @@ import OutletSelector from './OutletSelector';
 import Toast from './Toast';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
+import { PageSkeleton } from './ui/skeleton';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -40,6 +41,12 @@ export default function Layout() {
       navigate('/login', { replace: true });
     }
   };
+
+  // The page scrolls inside <main>, so reset it on navigation like a full page load would.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [location.pathname]);
 
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
@@ -82,13 +89,13 @@ export default function Layout() {
                   key={item.to}
                   to={item.to}
                   className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                    'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-out',
                     active
                       ? 'bg-primary/10 text-primary border-l-2 border-l-primary'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      : 'border-l-2 border-l-transparent text-muted-foreground hover:translate-x-0.5 hover:bg-muted hover:text-foreground'
                   )}
                 >
-                  <Icon className={cn('h-4 w-4 shrink-0', active && 'text-primary')} />
+                  <Icon className={cn('h-4 w-4 shrink-0 transition-colors duration-200', active && 'text-primary')} />
                   {item.label}
                 </Link>
               );
@@ -107,7 +114,7 @@ export default function Layout() {
               <User className="h-4 w-4" />
             </Button>
             {profileOpen && user && (
-              <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-border bg-card py-2 shadow-lg">
+              <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] origin-top-right animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 duration-150 rounded-md border border-border bg-card py-2 shadow-lg">
                 <div className="px-3 py-2 text-sm">
                   <p className="font-medium text-foreground">{user.username}</p>
                   <p className="text-xs text-muted-foreground">{ROLE_LABELS[user.role] ?? user.role}</p>
@@ -120,9 +127,12 @@ export default function Layout() {
             )}
           </div>
         </header>
-        <main className="flex-1 overflow-auto">
-          <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
-            <Outlet />
+        <main ref={mainRef} className="flex-1 overflow-auto">
+          <Suspense fallback={<PageSkeleton />}>
+            {/* Keyed by route: each page fades/slides in on navigation. */}
+            <div key={location.pathname} className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ease-out-expo">
+              <Outlet />
+            </div>
           </Suspense>
         </main>
       </div>

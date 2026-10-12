@@ -15,13 +15,16 @@ export default function Toast() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+    <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-2" aria-live="polite">
       {toasts.map((t) => (
         <div
           key={t.id}
           role="alert"
           className={cn(
-            'flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg',
+            'pointer-events-auto flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg',
+            t.leaving
+              ? 'animate-out fade-out-0 slide-out-to-right-8 fill-mode-forwards duration-200'
+              : 'animate-in fade-in-0 slide-in-from-right-8 duration-300 ease-out-expo',
             typeStyles[t.type] ?? typeStyles.info
           )}
         >
