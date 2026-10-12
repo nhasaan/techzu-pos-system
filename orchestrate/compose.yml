@@ -1,0 +1,97 @@
+name: pos-system
+
+# Full local stack:   docker compose -f orchestrate/compose.yml up --build
+# Seed demo data:     docker compose -f orchestrate/compose.yml --profile db-job run --rm seed
+# App: http://localhost:8080   API: http://localhost:3000/api   Docs: http://localhost:3000/docs
+#
+# Optional overrides go in orchestrate/backend/.envs/app.env (see app.env.example).
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  PORT: "3000"
+  DATABASE_URL: postgres://pos:pos@postgres:5432/pos_db
+  REDIS_URL: redis://redis:6379
+  # Local-only default. Real deployments must inject their own secret.
+  JWT_SECRET: ${JWT_SECRET:-local-compose-secret-change-me-0123456789abcdef}
+  CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+  TRUST_PROXY: "1"
+  API_DOCS: "true"
+
+x-backend: &backend
+  build:
+    context: ..
+    dockerfile: orchestrate/backend/Dockerfile
+  image: pos-backend:local
+  environment: *backend-env
+  env_file:
+    - path: ./backend/.envs/app.env
+      required: false
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pos
+      POSTGRES_PASSWORD: pos
+      POSTGRES_DB: pos_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pos -d pos_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Applies pending migrations, then exits. The API starts only after it succeeds.
+  migrate:
+    <<: *backend
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seed:
+    <<: *backend
+    command: ["seed"]
+    restart: "no"
+    profiles: ["db-job"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  backend:
+    <<: *backend
+    command: ["start"]
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: orchestrate/frontend/Dockerfile
+    image: pos-frontend:local
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
