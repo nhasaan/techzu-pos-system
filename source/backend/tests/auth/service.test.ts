@@ -56,6 +56,15 @@ describe('auth', () => {
     await api().post('/api/auth/refresh').send({ refreshToken: winner.refreshToken }).expect(200);
   });
 
+  it('prunes expired sessions on login', async () => {
+    await login('admin');
+    await pool.query("UPDATE tokens SET expires_at = now() - interval '1 day'");
+    await login('admin');
+    await new Promise((r) => setTimeout(r, 50)); // cleanup is fire-and-forget
+    const { rows } = await pool.query('SELECT count(*)::int AS n FROM tokens WHERE expires_at < now()');
+    expect(rows[0].n).toBe(0);
+  });
+
   it('logout invalidates the access token', async () => {
     const { accessToken } = await login('admin');
     await api().post('/api/auth/logout').set(bearer(accessToken)).expect(200);

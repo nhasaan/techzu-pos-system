@@ -1,4 +1,4 @@
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt, lt, sql } from 'drizzle-orm';
 import { db, type DbExecutor } from '../../shared/db';
 import { tokens, users } from '../../shared/db/schema';
 
@@ -9,6 +9,11 @@ export const authRepository = {
 
   findUserById(id: number) {
     return db.query.users.findFirst({ where: eq(users.id, id) });
+  },
+
+  /** Housekeeping: refresh sessions past their expiry can never be used again. */
+  async deleteExpiredSessions(userId: number) {
+    await db.delete(tokens).where(and(eq(tokens.userId, userId), lt(tokens.expiresAt, sql`now()`)));
   },
 
   async insertSession(exec: DbExecutor, userId: number, jti: string, expiresAt: Date) {

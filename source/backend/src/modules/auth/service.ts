@@ -41,6 +41,8 @@ export async function login(username: string, password: string) {
 
   const { pair, expiresAt } = await startSession(toSubject(user));
   await authRepository.insertSession(db, user.id, pair.jti, expiresAt);
+  // Best effort; a failure here must not fail the login.
+  authRepository.deleteExpiredSessions(user.id).catch((err) => logger.warn({ err }, 'Expired session cleanup failed'));
   return { accessToken: pair.accessToken, refreshToken: pair.refreshToken };
 }
 
