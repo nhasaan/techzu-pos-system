@@ -8,6 +8,7 @@ import {
   isLockTimeout,
   isQueryTimeout,
   isUniqueViolation,
+  pgConstraint,
 } from './pg-errors';
 
 export const notFoundHandler: RequestHandler = (req, res) => {
@@ -42,15 +43,15 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   }
 
   if (isUniqueViolation(err)) {
-    res.status(409).json(fail('Resource already exists', { conflict: (err as { constraint?: string }).constraint ?? 'unique' }));
+    res.status(409).json(fail('Resource already exists', { conflict: pgConstraint(err) ?? 'unique' }));
     return;
   }
   if (isForeignKeyViolation(err)) {
-    res.status(422).json(fail('Referenced resource does not exist', { reference: (err as { constraint?: string }).constraint ?? 'foreign key' }));
+    res.status(422).json(fail('Referenced resource does not exist', { reference: pgConstraint(err) ?? 'foreign key' }));
     return;
   }
   if (isCheckViolation(err)) {
-    res.status(422).json(fail('Constraint violated', { constraint: (err as { constraint?: string }).constraint ?? 'check' }));
+    res.status(422).json(fail('Constraint violated', { constraint: pgConstraint(err) ?? 'check' }));
     return;
   }
   if (isLockTimeout(err)) {

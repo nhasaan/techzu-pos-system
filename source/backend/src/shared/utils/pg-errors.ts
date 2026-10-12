@@ -7,7 +7,19 @@ interface PgLikeError {
   message?: string;
 }
 
-const asPg = (err: unknown): PgLikeError | null => (err && typeof err === 'object' ? (err as PgLikeError) : null);
+/**
+ * The PostgreSQL error behind `err`. Drizzle (>= 0.44) wraps driver errors in DrizzleQueryError with
+ * the original node-postgres error as `cause`, so walk the cause chain to the one carrying a SQLSTATE.
+ */
+function asPg(err: unknown): PgLikeError | null {
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current && typeof current === 'object'; depth++) {
+    const e = current as PgLikeError & { cause?: unknown };
+    if (typeof e.code === 'string') return e;
+    current = e.cause;
+  }
+  return err && typeof err === 'object' ? (err as PgLikeError) : null;
+}
 
 const CONNECTION_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', '57P01', '57P02', '57P03', '53300']);
 
@@ -28,3 +40,6 @@ export function isUniqueViolation(err: unknown, constraint?: string): boolean {
 
 export const isForeignKeyViolation = (err: unknown) => asPg(err)?.code === '23503';
 export const isCheckViolation = (err: unknown) => asPg(err)?.code === '23514';
+
+/** Name of the violated constraint, if any (through Drizzle's error wrapper). */
+export const pgConstraint = (err: unknown) => asPg(err)?.constraint;

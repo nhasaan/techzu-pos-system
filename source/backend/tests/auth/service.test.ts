@@ -72,7 +72,8 @@ describe('auth', () => {
     await login('admin');
     await new Promise((r) => setTimeout(r, 300)); // rehash is fire-and-forget
     const { rows } = await pool.query("SELECT password_hash FROM users WHERE username = 'admin'");
-    expect(rows[0].password_hash).toContain('m=19456,t=2,p=1');
+    const params = Object.fromEntries(rows[0].password_hash.split('$')[3].split(',').map((kv: string) => kv.split('=')));
+    expect(params).toEqual({ m: '19456', t: '2', p: '1' });
     await login('admin'); // still works with the new hash
   });
 

@@ -1,4 +1,4 @@
-import rateLimit, { MemoryStore, type Options, type Store, type ClientRateLimitInfo } from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator, MemoryStore, type Options, type Store, type ClientRateLimitInfo } from 'express-rate-limit';
 import { config } from '../config';
 import type { Request } from 'express';
 import { verifyToken } from './jwt';
@@ -55,7 +55,9 @@ class RedisWithMemoryFallbackStore implements Store {
 
 const tooMany = fail('Too many requests, please try again later.', { rate: 'Limit exceeded' });
 
-const clientIp = (req: Request) => req.ip ?? req.socket.remoteAddress ?? 'unknown';
+// ipKeyGenerator collapses IPv6 addresses to their /56 subnet, so a client cannot dodge the limit by
+// rotating through the addresses of its own prefix.
+const clientIp = (req: Request) => ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? '0.0.0.0');
 
 /**
  * Who a request counts against. All terminals of an outlet usually share one public (NAT) IP, so

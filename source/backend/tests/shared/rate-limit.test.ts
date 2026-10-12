@@ -17,6 +17,12 @@ describe('rate-limit keys', () => {
     expect(b).toBe('u:2');
   });
 
+  it('groups IPv6 clients by subnet so address rotation does not bypass limits', () => {
+    const a = apiKey(req({ ip: '2001:db8:abcd:12::1' }));
+    const b = apiKey(req({ ip: '2001:db8:abcd:12:ffff::9' }));
+    expect(a).toBe(b);
+  });
+
   it('falls back to the IP for anonymous or forged tokens', () => {
     expect(apiKey(req({}))).toBe('ip:203.0.113.7');
     expect(apiKey(req({ headers: { authorization: 'Bearer forged.token.value' } }))).toBe('ip:203.0.113.7');

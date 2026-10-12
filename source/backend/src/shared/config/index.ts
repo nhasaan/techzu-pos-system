@@ -2,7 +2,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const DEV_JWT_SECRET = 'dev-only-insecure-secret-change-me-please-32ch';
 
