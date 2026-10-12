@@ -68,6 +68,9 @@ async function seed() {
   const passwordHash = await argon2.hash(DEFAULT_PASSWORD);
 
   await db.transaction(async (tx) => {
+    // Serialise concurrent seeds (e.g. several instances booting together); released at commit.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(482190002)`);
+
     // Outlets
     await tx.insert(outlets).values(SEED_OUTLETS).onConflictDoNothing();
     const outletRows = await tx
