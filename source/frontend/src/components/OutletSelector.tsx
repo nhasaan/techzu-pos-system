@@ -29,7 +29,7 @@ export default function OutletSelector() {
         value={selectedOutletId ?? ''}
         onChange={(e) => setSelectedOutletId(e.target.value ? Number(e.target.value) : null)}
         className={cn(
-          'min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-foreground outline-none',
+          'min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-foreground outline-hidden',
           'focus:ring-0 [&>option]:bg-card [&>option]:text-foreground'
         )}
         aria-label="Switch outlet"

@@ -18,7 +18,7 @@ export default function Pagination({ pageNumber, hasPrev, hasNext, onPrev, onNex
         <ChevronLeft className="h-4 w-4" />
         Prev
       </Button>
-      <span className="min-w-[4rem] text-center text-sm text-muted-foreground">Page {pageNumber}</span>
+      <span className="min-w-16 text-center text-sm text-muted-foreground">Page {pageNumber}</span>
       <Button type="button" variant="outline" size="sm" onClick={onNext} disabled={!hasNext} className="gap-1">
         Next
         <ChevronRight className="h-4 w-4" />

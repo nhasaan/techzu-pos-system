@@ -186,14 +186,14 @@ export default function Sales() {
             {fields.map((field, i) => (
               <div key={field.id} className="flex gap-2 items-end">
                 <div className="flex-1 space-y-1">
-                  <Label className="text-xs">Item</Label>
+                  <Label className="text-xs leading-6">Item</Label>
                   <select {...register(`items.${i}.menuItemId`, { valueAsNumber: true })} className={cn('flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm')}>
                     <option value={0}>Select</option>
                     {(menuData?.items ?? []).filter((m) => m.isActive !== false).map((m) => <option key={m.id} value={m.id}>{m.name ?? m.id} — {m.outletPrice ?? m.basePrice}</option>)}
                   </select>
                 </div>
                 <div className="w-20 space-y-1">
-                  <Label className="text-xs">Qty</Label>
+                  <Label className="text-xs leading-6">Qty</Label>
                   <Input type="number" min={1} className="h-8" {...register(`items.${i}.quantity`, { valueAsNumber: true })} />
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={() => remove(i)}>Remove</Button>

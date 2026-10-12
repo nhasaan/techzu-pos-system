@@ -7,7 +7,10 @@ const Label = React.forwardRef<HTMLLabelElement, LabelProps>(({ className, ...pr
   <label
     ref={ref}
     className={cn(
-      'text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
+      // Block with a 24px line box: Tailwind 4's space-y-* spaces children with margin-bottom, which
+      // inline labels ignore. Under Tailwind 3 the inline label sat in the parent's 24px line box, so
+      // leading-6 keeps label-to-field spacing identical to before.
+      'block text-sm font-medium leading-6 peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
       className
     )}
     {...props}

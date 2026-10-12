@@ -1,6 +1,76 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+/* Enter/exit animation utilities (animate-in, fade-in-0, zoom-in-95, slide-in-from-*, ...). */
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* Same system font stack as before the Tailwind 4 migration, set explicitly so every platform
+     renders the UI with its native UI font. */
+  --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --default-font-family: var(--font-sans);
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-fade-up: fade-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-shimmer: shimmer 1.4s infinite;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
+@utility row-enter {
+  /* Staggered entrance for list rows; delay comes from an inline --row-delay. Rows start half
+     visible (not transparent), so a table never looks empty or blinks when it appears. */
+  animation: row-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--row-delay, 0ms);
+}
+
+@utility appear-delayed {
+  /* Loading placeholders only show up if loading takes longer than ~150ms; fast loads (cached data,
+     local network) go straight to content with no placeholder flash. */
+  animation: appear 0.2s ease-out 150ms both;
+}
 
 @layer base {
   :root {
@@ -51,26 +121,14 @@
     /* Reserve the scrollbar's space so pages don't shift sideways when content grows. */
     scrollbar-gutter: stable;
   }
+  html {
+    font-family: var(--font-sans);
+  }
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-  }
-}
-
-@layer utilities {
-  /* Staggered entrance for list rows; delay comes from an inline --row-delay. Rows start half
-     visible (not transparent), so a table never looks empty or blinks when it appears. */
-  .row-enter {
-    animation: row-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: var(--row-delay, 0ms);
-  }
-
-  /* Loading placeholders only show up if loading takes longer than ~150ms; fast loads (cached data,
-     local network) go straight to content with no placeholder flash. */
-  .appear-delayed {
-    animation: appear 0.2s ease-out 150ms both;
   }
 }
 
