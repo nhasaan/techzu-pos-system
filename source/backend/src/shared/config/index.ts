@@ -83,7 +83,10 @@ function parseExpiryToSeconds(value: string): number {
 }
 
 function loadConfig() {
-  const parsed = envSchema.safeParse(process.env);
+  // Blank values mean "not set" (e.g. a Render env var left empty, or `API_DOCS=` in .env), so they
+  // fall back to defaults instead of failing validation.
+  const definedEnv = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== undefined && value.trim() !== ''));
+  const parsed = envSchema.safeParse(definedEnv);
   if (!parsed.success) {
     const details = parsed.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment configuration:\n${details}`);

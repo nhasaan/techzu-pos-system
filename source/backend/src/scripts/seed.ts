@@ -16,7 +16,8 @@ import { logger } from '../shared/utils/logger';
 import { hashPassword } from '../shared/utils/password';
 import { rebuildSalesRollups } from '../shared/db/rollups';
 
-const DEFAULT_PASSWORD = process.env.SEED_PASSWORD ?? 'REDACTED';
+// `||`, not `??`: an env var left blank (e.g. an unfilled Render prompt) must not become an empty password.
+const DEFAULT_PASSWORD = process.env.SEED_PASSWORD?.trim() || 'REDACTED';
 
 const SEED_OUTLETS = [
   { name: 'Main Outlet', address: '123 Main St' },
