@@ -81,7 +81,13 @@ export const tokens = pgTable(
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index('tokens_user_id_status_idx').on(t.userId, t.status), index('tokens_revoked_at_idx').on(t.revokedAt)],
+  (t) => [
+    index('tokens_user_id_status_idx').on(t.userId, t.status),
+    // Partial: only revoked sessions have revoked_at, and only those are scanned (blacklist rebuild).
+    index('tokens_revoked_at_idx').on(t.revokedAt).where(sql`${t.revokedAt} IS NOT NULL`),
+    // Expired-session cleanup job.
+    index('tokens_expires_at_idx').on(t.expiresAt),
+  ],
 );
 
 export const menuItems = pgTable(
@@ -161,7 +167,8 @@ export const sales = pgTable(
   },
   (t) => [
     unique('sales_outlet_receipt_unique').on(t.outletId, t.receiptNumber),
-    unique('sales_outlet_idempotency_unique').on(t.outletId, t.idempotencyKey),
+    // Partial: most sales carry no key, and NULL entries would only bloat the index.
+    uniqueIndex('sales_outlet_idempotency_unique').on(t.outletId, t.idempotencyKey).where(sql`${t.idempotencyKey} IS NOT NULL`),
     // Serves the sales list keyset order (newest first, via a backward scan) and date-range filters.
     // Deliberately ascending: a DESC NULLS LAST index would not match ORDER BY ... DESC (NULLS FIRST)
     // and PostgreSQL would sort every remaining row instead of reading the index in order.

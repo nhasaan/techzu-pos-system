@@ -29,6 +29,13 @@
       "when": 1791813575508,
       "tag": "0003_report_rollups",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791814292872,
+      "tag": "0004_partial_indexes_token_cleanup",
+      "breakpoints": true
     }
   ]
 }

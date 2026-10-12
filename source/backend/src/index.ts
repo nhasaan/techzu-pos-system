@@ -4,6 +4,7 @@ import { config } from './shared/config';
 import { pool } from './shared/db';
 import { logger } from './shared/utils/logger';
 import { closeRedis, redis } from './shared/utils/redis';
+import { startMaintenance, stopMaintenance } from './shared/utils/maintenance';
 import { rebuildBlacklist } from './modules/auth/service';
 
 const app = createApp();
@@ -17,6 +18,8 @@ server.keepAliveTimeout = 65_000;
 server.headersTimeout = 66_000;
 server.requestTimeout = 30_000;
 
+startMaintenance();
+
 server.listen(config.port, '0.0.0.0', () => {
   logger.info({ port: config.port, env: config.env }, 'Server listening');
 });
@@ -26,6 +29,7 @@ async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info({ signal }, 'Shutting down gracefully');
+  stopMaintenance();
 
   const forceExit = setTimeout(() => {
     logger.error('Forced shutdown after timeout');

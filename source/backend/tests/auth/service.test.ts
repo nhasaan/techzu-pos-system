@@ -84,6 +84,16 @@ describe('auth', () => {
     expect(rows[0].n).toBe(0);
   });
 
+  it('background cleanup removes sessions expired over a day ago, in batches', async () => {
+    const { cleanupExpiredSessions } = await import('../../src/shared/utils/maintenance');
+    await login('admin');
+    await pool.query("UPDATE tokens SET expires_at = now() - interval '2 days'");
+    const deleted = await cleanupExpiredSessions();
+    expect(deleted).toBeGreaterThan(0);
+    const { rows } = await pool.query("SELECT count(*)::int AS n FROM tokens WHERE expires_at < now() - interval '1 day'");
+    expect(rows[0].n).toBe(0);
+  });
+
   it('logout invalidates the access token', async () => {
     const { accessToken } = await login('admin');
     await api().post('/api/auth/logout').set(bearer(accessToken)).expect(200);
