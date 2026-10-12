@@ -9,7 +9,7 @@ A multi-outlet F&B point-of-sale system:
 
 | | |
 |---|---|
-| **Stack** | PostgreSQL · Express 5 · Node.js 24 · React 19 (Vite) · Redis (optional) · TypeScript |
+| **Stack** | Node.js 24 LTS · Express 5 · PostgreSQL · Redis (optional) · React 19 + Vite 8 · Tailwind CSS 4 · TypeScript 6 · Zod 4 · Drizzle ORM |
 | **Backend** | Layered: routes → controllers → services → repositories, with zod validation and a central error middleware |
 | **Ops** | Dockerfiles, docker compose, GitHub Actions CI, Render blueprint |
 
@@ -47,9 +47,18 @@ The `common-net` network with the shared `postgres` and `redis` containers must 
 | API docs (Swagger) | http://localhost:3000/docs |
 | Health  | http://localhost:3000/health/ready |
 
+### Versions
+
+Everything runs on the latest stable releases:
+- **Node.js:** 24 "Krypton", the active LTS. Node 26 becomes LTS on 2026-10-28; moving to it is a one-line change in `.nvmrc`, `engines` and the Docker images.
+- **TypeScript:** 6.0. TypeScript 7 exists, but `typescript-eslint` doesn't support it yet.
+- **`@types/node`:** follows the Node LTS runtime (24.x).
+
+`npm audit` reports 0 vulnerabilities in both apps. Packages allowed to run install scripts are reviewed in each `package.json` under `allowScripts`.
+
 ## Local development
 
-You need Node.js 24 (see `.nvmrc`), PostgreSQL 14 or later, and optionally Redis 6 or later.
+You need Node.js 24 LTS (see `.nvmrc`), PostgreSQL 14 or later (tested on 17 and 18), and optionally Redis 6+ or Valkey 8.
 
 ```bash
 # 1. Backend
