@@ -62,5 +62,16 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.4"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.12"
+    }
+  },
+  "allowScripts": {
+    "argon2": true,
+    "esbuild": true,
+    "fsevents": true,
+    "@scarf/scarf": false
   }
 }
