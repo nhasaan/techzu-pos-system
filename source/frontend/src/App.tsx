@@ -8,6 +8,10 @@ import { ApiError } from './lib/api';
 // Route-level code splitting: each page is its own chunk, loaded on first visit.
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Outlets = lazy(() => import('./pages/Outlets'));
+const OutletNew = lazy(() => import('./pages/OutletNew'));
+const Users = lazy(() => import('./pages/Users'));
+const UserNew = lazy(() => import('./pages/UserNew'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -32,6 +36,10 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
+              <Route path="outlets" element={<Outlets />} />
+              <Route path="outlets/new" element={<OutletNew />} />
+              <Route path="users" element={<Users />} />
+              <Route path="users/new" element={<UserNew />} />
             </Route>
             <Route path="/404" element={<NotFound />} />
             <Route path="*" element={<Navigate to="/404" replace />} />
