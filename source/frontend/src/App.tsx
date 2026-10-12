@@ -15,6 +15,7 @@ const MasterMenu = lazy(() => import('./pages/MasterMenu'));
 const Inventory = lazy(() => import('./pages/Inventory'));
 const Sales = lazy(() => import('./pages/Sales'));
 const Receipt = lazy(() => import('./pages/Receipt'));
+const Reports = lazy(() => import('./pages/Reports'));
 const Users = lazy(() => import('./pages/Users'));
 const UserNew = lazy(() => import('./pages/UserNew'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -48,6 +49,7 @@ function App() {
               <Route path="inventory" element={<Inventory />} />
               <Route path="sales" element={<Sales />} />
               <Route path="sales/:saleId" element={<Receipt />} />
+              <Route path="reports" element={<Reports />} />
               <Route path="users" element={<Users />} />
               <Route path="users/new" element={<UserNew />} />
             </Route>
