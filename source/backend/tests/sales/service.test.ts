@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { pool } from '../../src/shared/db';
+import { db, pool } from '../../src/shared/db';
+import { rebuildSalesRollups } from '../../src/shared/db/rollups';
 import { api, bearer, createUser, login, setupDatabase, teardownDatabase } from '../helpers';
 
 let hq: string;
@@ -158,6 +159,7 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
          FROM generate_series(1, 9) g`,
         [mainId],
       );
+      await rebuildSalesRollups(db, [mainId]); // raw inserts bypass the sale flow, like the seed
       const { rows: [{ n }] } = await pool.query('SELECT count(*)::int AS n FROM sales WHERE outlet_id = $1', [mainId]);
 
       const seen: number[] = [];
@@ -222,6 +224,23 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
     it('rejects impossible calendar dates', async () => {
       const res = await api().get(`/api/reports/outlet/${mainId}/summary?dateFrom=2026-02-31`).set(bearer(hq));
       expect(res.status).toBe(422);
+    });
+
+    it('keeps the report rollups exactly in line with the raw sales tables', async () => {
+      const { rows: mismatches } = await pool.query(`
+        WITH raw AS (
+          SELECT s.outlet_id, (s.created_at AT TIME ZONE 'UTC')::date AS day, si.menu_item_id,
+                 sum(si.quantity)::int AS qty, sum(si.quantity * si.price_at_sale) AS revenue
+          FROM sale_items si JOIN sales s ON s.id = si.sale_id GROUP BY 1, 2, 3
+        )
+        SELECT * FROM raw FULL JOIN outlet_item_daily_sales r USING (outlet_id, day, menu_item_id)
+        WHERE raw.qty IS DISTINCT FROM r.quantity OR raw.revenue IS DISTINCT FROM r.revenue`);
+      expect(mismatches).toEqual([]);
+      const { rows: daily } = await pool.query(`
+        WITH raw AS (SELECT outlet_id, (created_at AT TIME ZONE 'UTC')::date AS day, count(*)::int AS n, sum(total_amount) AS revenue FROM sales GROUP BY 1, 2)
+        SELECT * FROM raw FULL JOIN outlet_daily_sales r USING (outlet_id, day)
+        WHERE raw.n IS DISTINCT FROM r.tx_count OR raw.revenue IS DISTINCT FROM r.revenue`);
+      expect(daily).toEqual([]);
     });
 
     it('filters by date range', async () => {

@@ -1,67 +1,67 @@
-import { and, count, desc, eq, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../shared/db';
-import { menuItems, outlets, saleItems, sales } from '../../shared/db/schema';
+import { menuItems, outletDailySales, outletItemDailySales, outlets } from '../../shared/db/schema';
 
-export interface DateBounds {
-  from?: Date;
-  /** Exclusive upper bound. */
-  to?: Date;
+/** Inclusive UTC calendar days (YYYY-MM-DD). */
+export interface DayRange {
+  from?: string;
+  to?: string;
 }
 
-function saleFilters(bounds: DateBounds, outletIds?: number[]): SQL[] {
+function dayFilters(day: typeof outletDailySales.day | typeof outletItemDailySales.day, range: DayRange): SQL[] {
   const filters: SQL[] = [];
-  if (outletIds) filters.push(inArray(sales.outletId, outletIds));
-  if (bounds.from) filters.push(gte(sales.createdAt, bounds.from));
-  if (bounds.to) filters.push(lt(sales.createdAt, bounds.to));
+  if (range.from) filters.push(gte(day, range.from));
+  if (range.to) filters.push(lte(day, range.to));
   return filters;
 }
 
-// All aggregation happens in PostgreSQL; only result rows cross the wire.
-// The (outlet_id, created_at) index on sales serves every filter below.
+// Reports read the daily rollups (see shared/db/rollups.ts), never the raw sales tables: cost depends
+// on the number of days in the range, not on how many sales exist. Primary keys (outlet_id, day[, item])
+// serve every filter below.
 export const reportsRepository = {
-  async summary(outletId: number, bounds: DateBounds) {
+  async summary(outletId: number, range: DayRange) {
     const [row] = await db
       .select({
-        transactionCount: count(),
-        totalRevenue: sql<string>`COALESCE(SUM(${sales.totalAmount}), 0)::text`,
+        transactionCount: sql<number>`COALESCE(SUM(${outletDailySales.txCount}), 0)::int`,
+        totalRevenue: sql<string>`COALESCE(SUM(${outletDailySales.revenue}), 0)::text`,
       })
-      .from(sales)
-      .where(and(...saleFilters(bounds, [outletId])));
+      .from(outletDailySales)
+      .where(and(eq(outletDailySales.outletId, outletId), ...dayFilters(outletDailySales.day, range)));
     return row;
   },
 
-  topItems(outletId: number, bounds: DateBounds, limit: number) {
-    const quantitySold = sql<number>`SUM(${saleItems.quantity})::int`;
+  topItems(outletId: number, range: DayRange, limit: number) {
+    const quantitySold = sql<number>`SUM(${outletItemDailySales.quantity})::int`;
+    const revenue = sql`SUM(${outletItemDailySales.revenue})`;
     return db
       .select({
-        menuItemId: saleItems.menuItemId,
+        menuItemId: outletItemDailySales.menuItemId,
         name: menuItems.name,
         quantitySold,
-        revenue: sql<string>`SUM(${saleItems.quantity} * ${saleItems.priceAtSale})::text`,
+        revenue: sql<string>`${revenue}::text`,
       })
-      .from(saleItems)
-      .innerJoin(sales, eq(sales.id, saleItems.saleId))
-      .innerJoin(menuItems, eq(menuItems.id, saleItems.menuItemId))
-      .where(and(...saleFilters(bounds, [outletId])))
-      .groupBy(saleItems.menuItemId, menuItems.name)
-      .orderBy(desc(quantitySold), desc(sql`SUM(${saleItems.quantity} * ${saleItems.priceAtSale})`), saleItems.menuItemId)
+      .from(outletItemDailySales)
+      .innerJoin(menuItems, eq(menuItems.id, outletItemDailySales.menuItemId))
+      .where(and(eq(outletItemDailySales.outletId, outletId), ...dayFilters(outletItemDailySales.day, range)))
+      .groupBy(outletItemDailySales.menuItemId, menuItems.name)
+      .orderBy(desc(quantitySold), desc(revenue), outletItemDailySales.menuItemId)
       .limit(limit);
   },
 
   /** Revenue per outlet; outlets without sales in the range are included with zero. */
-  revenueByOutlet(bounds: DateBounds, outletIds?: number[]) {
-    const joinOn = and(eq(sales.outletId, outlets.id), ...saleFilters(bounds));
+  revenueByOutlet(range: DayRange, outletIds?: number[]) {
+    const revenue = sql`COALESCE(SUM(${outletDailySales.revenue}), 0)`;
     return db
       .select({
         outletId: outlets.id,
         outletName: outlets.name,
-        transactionCount: sql<number>`COUNT(${sales.id})::int`,
-        totalRevenue: sql<string>`COALESCE(SUM(${sales.totalAmount}), 0)::text`,
+        transactionCount: sql<number>`COALESCE(SUM(${outletDailySales.txCount}), 0)::int`,
+        totalRevenue: sql<string>`${revenue}::text`,
       })
       .from(outlets)
-      .leftJoin(sales, joinOn)
+      .leftJoin(outletDailySales, and(eq(outletDailySales.outletId, outlets.id), ...dayFilters(outletDailySales.day, range)))
       .where(outletIds ? inArray(outlets.id, outletIds) : undefined)
       .groupBy(outlets.id, outlets.name)
-      .orderBy(desc(sql`COALESCE(SUM(${sales.totalAmount}), 0)`), outlets.name);
+      .orderBy(desc(revenue), outlets.name);
   },
 };

@@ -3,11 +3,13 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -186,5 +188,45 @@ export const saleItems = pgTable(
     index('sale_items_menu_item_id_idx').on(t.menuItemId),
     check('sale_items_quantity_positive', sql`${t.quantity} > 0`),
     check('sale_items_price_non_negative', sql`${t.priceAtSale} >= 0`),
+  ],
+);
+
+// ---------------------------------------------------------------------------------------------
+// Reporting rollups. Maintained inside the sale transaction (same commit, so they can never drift
+// from the raw tables) and backfilled by migration. Reports read these instead of re-aggregating
+// every sale: cost is O(days in range), not O(sales). Days are UTC calendar days, matching the
+// report date filters.
+// ---------------------------------------------------------------------------------------------
+
+export const outletDailySales = pgTable(
+  'outlet_daily_sales',
+  {
+    outletId: fk('outlet_id')
+      .notNull()
+      .references(() => outlets.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    txCount: integer('tx_count').notNull().default(0),
+    revenue: numeric('revenue', { precision: 14, scale: 2 }).notNull().default('0'),
+  },
+  (t) => [primaryKey({ columns: [t.outletId, t.day] })],
+);
+
+export const outletItemDailySales = pgTable(
+  'outlet_item_daily_sales',
+  {
+    outletId: fk('outlet_id')
+      .notNull()
+      .references(() => outlets.id, { onDelete: 'cascade' }),
+    day: date('day', { mode: 'string' }).notNull(),
+    menuItemId: fk('menu_item_id')
+      .notNull()
+      .references(() => menuItems.id, { onDelete: 'cascade' }),
+    quantity: integer('quantity').notNull().default(0),
+    revenue: numeric('revenue', { precision: 14, scale: 2 }).notNull().default('0'),
+  },
+  (t) => [
+    // (outlet, day range) scans for top items; menu_item_id last so each day's items are contiguous.
+    primaryKey({ columns: [t.outletId, t.day, t.menuItemId] }),
+    index('outlet_item_daily_sales_menu_item_id_idx').on(t.menuItemId),
   ],
 );

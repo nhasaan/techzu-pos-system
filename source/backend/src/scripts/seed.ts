@@ -14,6 +14,7 @@ import {
   users,
 } from '../shared/db/schema';
 import { logger } from '../shared/utils/logger';
+import { rebuildSalesRollups } from '../shared/db/rollups';
 
 const DEFAULT_PASSWORD = process.env.SEED_PASSWORD ?? 'REDACTED';
 
@@ -151,6 +152,8 @@ async function seed() {
           s.lines.map((l) => ({ saleId: idByReceipt.get(s.receiptNumber)!, menuItemId: l.menuItemId, quantity: l.quantity, priceAtSale: l.price })),
         ),
       );
+      // Seeded history bypasses the sale flow, so recompute this outlet's report rollups.
+      await rebuildSalesRollups(tx, [oid]);
       // Continue live receipt numbering after the seeded history.
       await tx
         .update(outlets)

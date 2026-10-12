@@ -1,5 +1,6 @@
 import { config } from '../../shared/config';
 import { db } from '../../shared/db';
+import { recordSaleInRollups } from '../../shared/db/rollups';
 import { Semaphore } from '../../shared/utils/semaphore';
 import { ConflictError, NotFoundError, ValidationError } from '../../shared/utils/errors';
 import { isUniqueViolation } from '../../shared/utils/pg-errors';
@@ -35,7 +36,7 @@ export interface CreateSaleOptions {
  *  2. take the next receipt number: UPDATE outlets ... RETURNING row-locks the outlet, so sales of
  *     one outlet are serialised from here on and can never contend (or deadlock) on stock rows,
  *  3. deduct all stock in one conditional UPDATE; a shortfall rolls everything back,
- *  4. insert the sale and its lines.
+ *  4. insert the sale and its lines, and add it to the daily report rollups (same commit).
  * Rolling back also returns the receipt number, so numbering stays gap-free.
  */
 export async function createSale(outletId: number, items: SaleItemInput[], opts: CreateSaleOptions = {}) {
@@ -91,6 +92,12 @@ export async function createSale(outletId: number, items: SaleItemInput[], opts:
           priceAtSale: fromCents(toCents(prices.get(l.menuItemId)!)),
         })),
       );
+      await recordSaleInRollups(tx, {
+        outletId,
+        createdAt: sale.createdAt,
+        totalAmount,
+        lines: lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity, price: fromCents(toCents(prices.get(l.menuItemId)!)) })),
+      });
       // Same item shape as the receipt endpoint and idempotent replays.
       const itemsWithNames = saleItemRows.map((r) => ({ ...r, itemName: names.get(r.menuItemId) ?? null }));
       return { sale, items: itemsWithNames, receiptNumber: sale.receiptNumber, totalAmount };
