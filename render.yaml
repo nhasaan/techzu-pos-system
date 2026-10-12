@@ -4,14 +4,14 @@
 # Dashboard -> Blueprints -> New Blueprint Instance -> select this repo.
 
 databases:
-  - name: pos-db
+  - name: database
     plan: free
     region: singapore
     databaseName: pos_db
 
 services:
   - type: keyvalue
-    name: pos-redis
+    name: redis
     plan: free
     region: singapore
     # Never evict: dropping token-blacklist keys would revive logged-out tokens. When full, cache
@@ -37,12 +37,12 @@ services:
         value: production
       - key: DATABASE_URL
         fromDatabase:
-          name: pos-db
+          name: database
           property: connectionString
       - key: REDIS_URL
         fromService:
           type: keyvalue
-          name: pos-redis
+          name: redis
           property: connectionString
       - key: JWT_SECRET
         generateValue: true

@@ -4,8 +4,8 @@ The repository includes a Render Blueprint, [`render.yaml`](../render.yaml). It 
 
 | Resource       | Type                 | Notes                                                       |
 |----------------|----------------------|-------------------------------------------------------------|
-| `pos-db`       | PostgreSQL (free)    | Render creates PostgreSQL 18 by default. Free databases expire after 30 days |
-| `pos-redis`    | Key Value (free)     | Internal only (`ipAllowList: []`)                           |
+| `database`     | PostgreSQL (free)    | Render creates PostgreSQL 18 by default. Free databases expire after 30 days |
+| `redis`        | Key Value (free)     | Internal only (`ipAllowList: []`)                           |
 | `pos-backend`  | Web service, Node 24 | Runs migrations and the idempotent seed, then starts the API |
 | `pos-frontend` | Static site          | SPA rewrite, long cache on hashed assets                    |
 
