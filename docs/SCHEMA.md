@@ -137,7 +137,40 @@ A Postgres `SEQUENCE` was not used. Sequences are non-transactional and leave ga
 
 ### Stock can never go negative
 
-1. Inventory rows for the sale are locked with `SELECT … FOR UPDATE ORDER BY menu_item_id`. The fixed lock order prevents deadlocks between overlapping sales.
-2. Stock is checked under the lock. Any shortfall returns HTTP 409.
-3. All lines are deducted in one `UPDATE … FROM (VALUES …)`.
-4. `CHECK (stock >= 0)` makes the database reject a negative value regardless of the code path.
+1. The sale first takes the outlet row lock (receipt counter), so sales of one outlet run one at a time from here. They never contend or deadlock on stock rows.
+2. All lines are deducted in one `UPDATE … FROM (VALUES …) WHERE stock >= qty RETURNING`. If fewer rows come back than there are lines, the whole sale rolls back with HTTP 409.
+3. `CHECK (stock >= 0)` makes the database reject a negative value regardless of the code path. Stock adjustments (`POST /inventory/adjust`) rely on it.
+
+## Reporting rollups
+
+Reports never scan `sales` / `sale_items`. Each sale upserts into these tables inside its own transaction, after it holds the outlet lock, so they commit and roll back with the sale. Migration 0003 backfilled them from existing sales, and `rebuildSalesRollups()` recomputes them after bulk loads (the seed uses it). Days are UTC calendar days, matching the report date filters.
+
+### outlet_daily_sales
+
+| Column      | Type          | Notes                     |
+|-------------|---------------|---------------------------|
+| `outlet_id` | bigint        | FK → outlets; PK part     |
+| `day`       | date          | UTC day; PK part          |
+| `tx_count`  | integer       | Sales that day            |
+| `revenue`   | numeric(14,2) | Sum of `total_amount`     |
+
+### outlet_item_daily_sales
+
+| Column         | Type          | Notes                                 |
+|----------------|---------------|---------------------------------------|
+| `outlet_id`    | bigint        | FK → outlets; PK part                 |
+| `day`          | date          | UTC day; PK part                      |
+| `menu_item_id` | bigint        | FK → menu_items; PK part              |
+| `quantity`     | integer       | Units sold that day                   |
+| `revenue`      | numeric(14,2) | Sum of `quantity × price_at_sale`     |
+
+The primary key `(outlet_id, day, menu_item_id)` serves "top items for an outlet over a date range".
+
+## Index notes
+
+- **`sales (outlet_id, created_at, id)`.** This is ascending on purpose. Postgres reads it backwards for the newest-first keyset list. A `DESC NULLS LAST` index would not match `ORDER BY … DESC` (which defaults to `NULLS FIRST`) and would force a sort of every remaining row.
+- **`outlets (name, id)` and `menu_items (name, id)`.** These serve keyset pagination. The outlet-menu and inventory lists sort by a joined item name, which is bounded by the size of one outlet's menu.
+- **`sales_outlet_idempotency_unique`.** A partial unique index (`WHERE idempotency_key IS NOT NULL`), so sales without a key add no entry.
+- **`tokens_revoked_at_idx`.** Partial, because only revoked sessions have a value.
+- **`tokens_expires_at_idx`.** Serves the hourly expired-session cleanup.
+

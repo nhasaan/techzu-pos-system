@@ -109,7 +109,7 @@ Every variable is validated at startup (`src/shared/config`). See `source/backen
 | `CORS_ORIGINS` | empty (any origin) | Comma-separated allowlist |
 | `TRUST_PROXY` | `0` | Number of proxy hops; set to `1` behind a load balancer |
 | `RATE_LIMIT_MAX` / `LOGIN_RATE_LIMIT_MAX` | `300` / `10` per minute per IP | |
-| `DB_POOL_MAX` / `DB_STATEMENT_TIMEOUT_MS` | `10` / `10000` | |
+| `DB_POOL_MAX` / `DB_STATEMENT_TIMEOUT_MS` / `DB_LOCK_TIMEOUT_MS` | `10` / `10000` / `5000` | A lock wait beyond `DB_LOCK_TIMEOUT_MS` returns 503 "busy, retry" |
 | `API_DOCS` | on outside production | Swagger UI at `/docs` |
 
 ## Demo users
@@ -153,7 +153,8 @@ Every response uses one envelope:
 | POST | `/menu` | HQ, superadmin | Create master item `{ name, description?, basePrice }` |
 | POST | `/menu/assign` | HQ, superadmin | `{ outletId, menuItemId, price?, isActive? }`: assign to an outlet, optionally overriding the price |
 | GET | `/menu/outlet/:outletId` | HQ; outlet admin (own outlet) | Only the items assigned to the outlet, with `outletPrice` and `isActive` |
-| PUT | `/inventory` | HQ; outlet admin (own outlet) | `{ outletId, menuItemId, stock }` (stock ≥ 0) |
+| PUT | `/inventory` | HQ; outlet admin (own outlet) | Set an exact count `{ outletId, menuItemId, stock, expectedStock? }`. With `expectedStock`, returns 409 if stock changed since it was read |
+| POST | `/inventory/adjust` | HQ; outlet admin (own outlet) | `{ outletId, menuItemId, delta }`: atomic add or remove (deliveries, waste). Never below 0 (409) |
 | GET | `/inventory/outlet/:outletId` | HQ; outlet admin (own outlet) | Stock per item |
 | POST | `/sales` | HQ (send `outletId`); outlet admin | `{ items: [{ menuItemId, quantity }] }`. Optional `Idempotency-Key` header (same key + same items returns the original sale; same key + different items returns 422). Returns 201 `{ sale, items, receiptNumber, totalAmount }`. Returns 409 on insufficient stock and 422 for items not sold at the outlet |
 | GET | `/sales/outlet/:outletId` | HQ; outlet admin (own outlet) | Sales, newest first (paginated) |
@@ -163,7 +164,7 @@ Every response uses one envelope:
 | GET | `/reports/outlet/:outletId/summary` | HQ; outlet admin (own outlet) | Transaction count and revenue |
 | GET | `/health`, `/health/ready` | public | Liveness / readiness (DB and Redis) |
 
-- **Pagination:** `?page=1&limit=20`, with `limit` capped at 100. Responses include `{ items, total, page, limit, totalPages }`.
+- **Pagination:** cursor (keyset) based: `?limit=20&cursor=<nextCursor>`, with `limit` capped at 100. Responses are `{ items, nextCursor, hasMore, limit }`; pass `nextCursor` back to get the next page (`null` on the last page). Every page costs the same at any depth, there's no `COUNT(*)`, and results don't shift while new rows arrive.
 - **Dates:** `YYYY-MM-DD`, inclusive, in UTC.
 
 Example sale:
@@ -192,22 +193,43 @@ Full reference: [docs/SCHEMA.md](docs/SCHEMA.md). Diagram: [docs/ERD.svg](docs/E
 | `sales` | Sale header: receipt number, total, idempotency key, creator | unique (outlet, receipt_number); unique (outlet, idempotency_key) |
 | `sale_items` | Lines, with `price_at_sale` snapshot | `CHECK quantity > 0` |
 
-Every table has foreign keys. Indexes match the queries: `sales (outlet_id, created_at)` serves sales lists and every report, `sale_items (sale_id)` serves receipts and top items, and the unique (outlet, item) indexes serve menu and stock lookups.
+Two **daily rollup tables**, `outlet_daily_sales` and `outlet_item_daily_sales`, are updated inside each sale's transaction, and reports read only those (see below).
+
+Every table has foreign keys. Indexes match the queries:
+- `sales (outlet_id, created_at, id)` serves the newest-first sales list, read backwards.
+- `(name, id)` on outlets and menu items serves their keyset pages.
+- The unique (outlet, item) indexes serve menu and stock lookups.
+- The rollup primary keys serve every report.
 
 ### How the core requirements are guaranteed
 
 All of these run inside one database transaction per sale:
 
 - **Only assigned items can be sold.** Prices are resolved as `COALESCE(override, base_price)`, and only for items assigned and active at the outlet.
+- **Sequential receipts per outlet under concurrency:** the sale first runs `UPDATE outlets SET receipt_seq = receipt_seq + 1 … RETURNING`. The row lock serialises sales within one outlet, and a rolled-back sale gives its number back, so the series has no gaps. Different outlets never block each other.
 - **No negative stock, even under concurrency:**
-  1. inventory rows are locked with `SELECT … FOR UPDATE`, ordered by item id so concurrent sales cannot deadlock
-  2. stock is checked under the lock (409 if short)
-  3. all lines are deducted in one `UPDATE`
-  4. `CHECK (stock >= 0)` backs it up at the database level
-- **Sequential receipts per outlet under concurrency:** `UPDATE outlets SET receipt_seq = receipt_seq + 1 … RETURNING`. The row lock serialises sales within one outlet, and a rolled-back sale gives its number back, so the series has no gaps. Different outlets never block each other.
+  1. all lines are deducted in **one conditional `UPDATE … WHERE stock >= qty`**
+  2. any line that couldn't be deducted rolls back the whole sale (409)
+  3. `CHECK (stock >= 0)` backs it up at the database level
+  4. because sales of an outlet are already serialised on the receipt counter, they never contend or deadlock on stock rows
+- **Bounded waiting:** a lock wait over 5 s returns 503 "busy, retry". Each process allows at most `DB_POOL_MAX − 2` concurrent sale transactions, so a burst at one outlet can't starve other requests of connections.
 - **Safe retries:** sending the same `Idempotency-Key` returns the original sale instead of creating a second one. Reusing a key for a different basket is rejected with 422.
 
-Integration tests cover all of this. For example, 40 concurrent sales against a stock of 20 produce exactly 20 sales with receipts 1–20, and stock ends at 0.
+Integration tests cover all of this. For example, 40 concurrent sales against a stock of 20 produce exactly 20 sales with receipts 1–20, and stock ends at 0. Another test reconciles the report rollups against the raw tables after the whole flow.
+
+### Measured at scale (2 million sales)
+
+| Query | Before | Now |
+|---|---|---|
+| Sales list, page halfway through (500k rows deep) | 89 ms (OFFSET), plus 150 ms `COUNT(*)` per request | **0.08 ms** (keyset) |
+| Report: outlet summary | 142 ms | **0.05 ms** (rollup) |
+| Report: top 5 items | 741 ms | **0.25 ms** (rollup) |
+| Report: revenue by outlet | 682 ms | **0.09 ms** (rollup) |
+
+| Load test (pool of 10 connections) | Result |
+|---|---|
+| 300 concurrent sales at one outlet | All succeed, at about 240 sales/s through that outlet's lock |
+| 100 concurrent reads at another outlet, during that burst | p95 20 ms |
 
 ## Architecture
 
@@ -248,9 +270,8 @@ Summary for the target of **10 outlets and about 100k transactions per month**:
   - a read replica for reports
   - later, monthly partitions on `sales` and `sale_items`, and sharding by `outlet_id` only at hundreds of outlets
 - **Reporting:**
-  - daily rollup tables (`outlet_daily_sales`, `outlet_item_daily`)
-  - covering indexes
-  - reports served from the replica, with a short-TTL cache
+  - reports already read daily rollups maintained in the sale transaction (implemented)
+  - reports served from a read replica
   - async exports to S3
   - CDC into a warehouse for BI
 - **Infrastructure:**

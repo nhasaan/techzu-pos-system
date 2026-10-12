@@ -99,14 +99,15 @@ sequenceDiagram
     participant DB as PostgreSQL
     C->>A: POST /api/sales (Idempotency-Key)
     A->>DB: existing sale for (outlet, key)? → return it (200, replayed)
+    Note over A: wait for a sale slot (max DB_POOL_MAX-2 per process)
     A->>DB: BEGIN
     A->>DB: prices = COALESCE(override, base) for items assigned AND active
     Note over A: any item missing → 422, ROLLBACK
-    A->>DB: SELECT … FROM inventory … ORDER BY menu_item_id FOR UPDATE
-    Note over A: stock < qty → 409, ROLLBACK
-    A->>DB: UPDATE inventory … FROM (VALUES …)   -- one statement
-    A->>DB: UPDATE outlets SET receipt_seq = receipt_seq + 1 RETURNING
+    A->>DB: UPDATE outlets SET receipt_seq = receipt_seq + 1 RETURNING  -- outlet row lock: sales of this outlet serialise here
+    A->>DB: UPDATE inventory … FROM (VALUES …) WHERE stock >= qty RETURNING  -- one statement
+    Note over A: fewer rows than lines → 409, ROLLBACK (receipt number returned too)
     A->>DB: INSERT sales; INSERT sale_items (bulk)
+    A->>DB: upsert outlet_daily_sales + outlet_item_daily_sales  -- one statement
     A->>DB: COMMIT
     A-->>C: 201 { sale, items, receiptNumber, totalAmount }
 ```
@@ -115,10 +116,20 @@ This was verified with 80 concurrent sales against a stock of 50: exactly 50 suc
 
 ## Performance choices
 
-- Count and page queries run in parallel. Reports aggregate in SQL and return only result rows.
-- Multi-row inserts and updates for sales. Indexes match the access paths (see [SCHEMA.md](SCHEMA.md)).
-- The outlet menu (the endpoint POS terminals hit most) is cached in Redis with version-based invalidation on assignment changes, so there is no stale data.
-- Pool limits, `statement_timeout`, and `idle_in_transaction_session_timeout` stop one slow request from tying up the database.
+- **Keyset (cursor) pagination on every list.** Pages are fetched with `LIMIT n+1` after the last row's sort key, through an index. There is no OFFSET and no `COUNT(*)`, so cost is constant at any depth: 0.08 ms vs 89 ms at 500k rows deep on 2M sales. Cursors are opaque, validated per endpoint, and carry PostgreSQL's own timestamp text, because a JavaScript `Date` would drop microseconds and skip rows.
+- **Reports read daily rollups** (`outlet_daily_sales`, `outlet_item_daily_sales`). Each sale updates them in the same transaction, so they never drift, and an integration test reconciles them against the raw tables. Report cost depends on the days in the range, not the number of sales: top 5 items takes 0.25 ms vs 741 ms on 2M sales.
+- **Short critical section for sales:**
+  - The outlet row lock is taken first, then stock is checked and deducted in one conditional statement, then a bulk insert and one rollup upsert run.
+  - `lock_timeout` (5 s) turns pathological waits into a 503 "busy, retry".
+  - A per-process cap on concurrent sale transactions keeps connections free for reads and logins: 300 concurrent sales at one outlet did not slow reads elsewhere (p95 20 ms).
+- **Pickers load complete lists** by following cursors. A single `limit=100` page used to drop item 101 and beyond.
+- **Outlet menu cache in Redis.** The menu is the endpoint POS terminals hit most. It uses version-based invalidation on assignment changes, with a 60 s TTL as a backstop.
+- **Pool limits.** `statement_timeout`, `lock_timeout` and `idle_in_transaction_session_timeout` stop one slow request from tying up the database.
+- **argon2id at the OWASP minimum** (19 MiB, t=2), with at most 2 hashes at a time. Library defaults used about 190 MB for 4 concurrent logins. Old hashes are upgraded on login.
+- **Rate limits keyed by user** (API, refresh) and by username + IP (login). Terminals behind one outlet NAT address don't throttle each other.
+- **Redis runs `noeviction`,** so blacklist keys are never silently dropped. Failed blacklist writes, a restart or a flush all switch revocation checks to Postgres until the blacklist is rebuilt.
+- **Background cleanup** deletes expired sessions hourly, in batches, on a single instance (advisory lock).
+- **Migrations and seed** take advisory locks, so several instances can boot together.
 - HTTP keep-alive is tuned above load-balancer idle timeouts. gzip is on. The SPA is code-split per route, and hashed assets are cached for a year by nginx or the static host.
 
 ## Related documents
