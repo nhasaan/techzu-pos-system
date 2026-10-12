@@ -5,6 +5,7 @@ import {
   isCheckViolation,
   isDbUnavailable,
   isForeignKeyViolation,
+  isLockTimeout,
   isQueryTimeout,
   isUniqueViolation,
 } from './pg-errors';
@@ -50,6 +51,12 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   }
   if (isCheckViolation(err)) {
     res.status(422).json(fail('Constraint violated', { constraint: (err as { constraint?: string }).constraint ?? 'check' }));
+    return;
+  }
+  if (isLockTimeout(err)) {
+    req.log?.warn({ err }, 'Lock wait timed out');
+    res.setHeader('Retry-After', '1');
+    res.status(503).json(fail('Service busy, please retry', { database: 'Busy' }));
     return;
   }
   if (isDbUnavailable(err) || isQueryTimeout(err)) {

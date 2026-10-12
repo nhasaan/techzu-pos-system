@@ -19,6 +19,7 @@ export function isDbUnavailable(err: unknown): boolean {
 }
 
 export const isQueryTimeout = (err: unknown) => asPg(err)?.code === '57014';
+export const isLockTimeout = (err: unknown) => asPg(err)?.code === '55P03';
 
 export function isUniqueViolation(err: unknown, constraint?: string): boolean {
   const e = asPg(err);

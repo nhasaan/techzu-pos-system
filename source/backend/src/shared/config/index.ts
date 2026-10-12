@@ -34,6 +34,7 @@ const envSchema = z
     DATABASE_SSL: boolString,
     DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
     DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(10000),
+    DB_LOCK_TIMEOUT_MS: z.coerce.number().int().min(0).default(5000),
 
     REDIS_URL: z.string().default('redis://localhost:6379'),
 
@@ -101,6 +102,7 @@ function loadConfig() {
       ssl: env.DATABASE_SSL,
       poolMax: env.DB_POOL_MAX,
       statementTimeoutMs: env.DB_STATEMENT_TIMEOUT_MS,
+      lockTimeoutMs: env.DB_LOCK_TIMEOUT_MS,
     },
     redis: { url: env.REDIS_URL },
     jwt: keys

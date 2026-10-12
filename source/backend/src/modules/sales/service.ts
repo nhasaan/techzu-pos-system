@@ -1,4 +1,6 @@
+import { config } from '../../shared/config';
 import { db } from '../../shared/db';
+import { Semaphore } from '../../shared/utils/semaphore';
 import { ConflictError, NotFoundError, ValidationError } from '../../shared/utils/errors';
 import { isUniqueViolation } from '../../shared/utils/pg-errors';
 import { decodeCursor, timestampIdKey, toCursorPage } from '../../shared/utils/pagination';
@@ -6,6 +8,10 @@ import { salesRepository } from './repository';
 import type { SaleItemInput } from './validation';
 
 const IDEMPOTENCY_CONSTRAINT = 'sales_outlet_idempotency_unique';
+
+// Cap concurrent sale transactions per process below the pool size, so a burst of sales (which
+// queue on their outlet's row lock) can never take every connection away from reads and logins.
+const saleSlots = new Semaphore(Math.max(1, config.db.poolMax - 2));
 
 /** Integer cents avoid floating point drift in totals. Prices are numeric(10,2) strings. */
 const toCents = (price: string) => Math.round(Number(price) * 100);
@@ -24,13 +30,13 @@ export interface CreateSaleOptions {
 }
 
 /**
- * Creates a sale atomically:
- *  1. resolve prices for items assigned + active at the outlet,
- *  2. lock the inventory rows (ordered) and verify stock,
- *  3. deduct stock in one statement,
- *  4. take the next per-outlet receipt number,
- *  5. insert the sale and its lines.
- * Any failure rolls back everything, including the receipt number.
+ * Creates a sale atomically. Order matters for contention:
+ *  1. resolve prices for items assigned + active at the outlet (plain read, no locks),
+ *  2. take the next receipt number: UPDATE outlets ... RETURNING row-locks the outlet, so sales of
+ *     one outlet are serialised from here on and can never contend (or deadlock) on stock rows,
+ *  3. deduct all stock in one conditional UPDATE; a shortfall rolls everything back,
+ *  4. insert the sale and its lines.
+ * Rolling back also returns the receipt number, so numbering stays gap-free.
  */
 export async function createSale(outletId: number, items: SaleItemInput[], opts: CreateSaleOptions = {}) {
   const key = opts.idempotencyKey ?? null;
@@ -43,7 +49,7 @@ export async function createSale(outletId: number, items: SaleItemInput[], opts:
   const ids = lines.map((l) => l.menuItemId);
 
   try {
-    const created = await db.transaction(async (tx) => {
+    const created = await saleSlots.run(() => db.transaction(async (tx) => {
       const sellable = await salesRepository.findSellablePrices(tx, outletId, ids);
       const prices = new Map(sellable.map((p) => [p.menuItemId, p.price]));
       const names = new Map(sellable.map((p) => [p.menuItemId, p.name]));
@@ -54,18 +60,18 @@ export async function createSale(outletId: number, items: SaleItemInput[], opts:
         });
       }
 
-      const stock = new Map((await salesRepository.lockStock(tx, outletId, ids)).map((r) => [r.menuItemId, r.stock]));
-      for (const { menuItemId, quantity } of lines) {
-        const available = stock.get(menuItemId) ?? 0;
-        if (available < quantity) {
-          const msg = `Insufficient stock for menu item ${menuItemId}: required ${quantity}, available ${available}`;
-          throw new ConflictError(msg, { stock: msg });
-        }
-      }
-      await salesRepository.deductStock(tx, outletId, lines);
-
       const seq = await salesRepository.nextReceiptNumber(tx, outletId);
       if (seq == null) throw new NotFoundError('Outlet not found', { outletId: 'Not found' });
+
+      const deducted = await salesRepository.deductStockIfAvailable(tx, outletId, lines);
+      if (deducted.size !== lines.length) {
+        // Rows we did not deduct were not modified by this transaction, so their stock is current.
+        const short = lines.filter((l) => !deducted.has(l.menuItemId));
+        const stock = new Map((await salesRepository.readStock(tx, outletId, short.map((l) => l.menuItemId))).map((r) => [r.menuItemId, r.stock]));
+        const first = short[0];
+        const msg = `Insufficient stock for menu item ${first.menuItemId}: required ${first.quantity}, available ${stock.get(first.menuItemId) ?? 0}`;
+        throw new ConflictError(msg, { stock: msg });
+      }
 
       const totalCents = lines.reduce((sum, l) => sum + toCents(prices.get(l.menuItemId)!) * l.quantity, 0);
       const totalAmount = fromCents(totalCents);
@@ -88,7 +94,7 @@ export async function createSale(outletId: number, items: SaleItemInput[], opts:
       // Same item shape as the receipt endpoint and idempotent replays.
       const itemsWithNames = saleItemRows.map((r) => ({ ...r, itemName: names.get(r.menuItemId) ?? null }));
       return { sale, items: itemsWithNames, receiptNumber: sale.receiptNumber, totalAmount };
-    });
+    }));
     return { ...created, replayed: false };
   } catch (err) {
     // Two concurrent requests with the same Idempotency-Key: the loser returns the winner's sale.

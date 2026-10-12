@@ -12,6 +12,9 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5_000,
   // Bound runaway queries and abandoned transactions so one bad request cannot pin connections.
   statement_timeout: config.db.statementTimeoutMs || undefined,
+  // A request waiting on a row lock (e.g. a burst of sales at one busy outlet) gives up instead of
+  // holding its pool connection for the whole statement timeout.
+  lock_timeout: config.db.lockTimeoutMs || undefined,
   idle_in_transaction_session_timeout: 30_000,
   application_name: 'pos-backend',
 });

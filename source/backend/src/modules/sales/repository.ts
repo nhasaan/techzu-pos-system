@@ -32,30 +32,31 @@ export const salesRepository = {
   },
 
   /**
-   * Row-locks the inventory rows for this sale. Locks are taken in menu_item_id order, so two
-   * concurrent sales touching overlapping items always lock in the same order and cannot deadlock.
+   * Deducts every line in ONE statement, only where enough stock remains, and returns the item ids
+   * that were deducted. Callers compare that with the requested lines; any shortfall means the
+   * transaction must roll back (which also restores the rows that were deducted).
    */
-  lockStock(exec: DbExecutor, outletId: number, menuItemIds: number[]) {
-    return exec
-      .select({ menuItemId: inventory.menuItemId, stock: inventory.stock })
-      .from(inventory)
-      .where(and(eq(inventory.outletId, outletId), inArray(inventory.menuItemId, menuItemIds)))
-      .orderBy(inventory.menuItemId)
-      .for('update');
-  },
-
-  /** Deducts all lines in one statement (rows are already locked and checked). */
-  async deductStock(exec: DbExecutor, outletId: number, lines: { menuItemId: number; quantity: number }[]) {
+  async deductStockIfAvailable(exec: DbExecutor, outletId: number, lines: { menuItemId: number; quantity: number }[]) {
     const values = sql.join(
       lines.map((l) => sql`(${l.menuItemId}::bigint, ${l.quantity}::int)`),
       sql`, `,
     );
-    await exec.execute(sql`
+    const result = await exec.execute<{ menu_item_id: string }>(sql`
       UPDATE ${inventory} AS i
       SET stock = i.stock - v.qty, updated_at = now()
       FROM (VALUES ${values}) AS v(menu_item_id, qty)
-      WHERE i.outlet_id = ${outletId} AND i.menu_item_id = v.menu_item_id
+      WHERE i.outlet_id = ${outletId} AND i.menu_item_id = v.menu_item_id AND i.stock >= v.qty
+      RETURNING i.menu_item_id
     `);
+    return new Set(result.rows.map((r) => Number(r.menu_item_id)));
+  },
+
+  /** Current stock for items (used only to explain a shortfall). Missing rows mean 0. */
+  readStock(exec: DbExecutor, outletId: number, menuItemIds: number[]) {
+    return exec
+      .select({ menuItemId: inventory.menuItemId, stock: inventory.stock })
+      .from(inventory)
+      .where(and(eq(inventory.outletId, outletId), inArray(inventory.menuItemId, menuItemIds)));
   },
 
   /**
