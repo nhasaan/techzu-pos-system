@@ -3,11 +3,11 @@ import { Package, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, keepPreviousData, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth';
 import { useOutletStore } from '../store/outlet';
 import Pagination from '../components/Pagination';
-import { usePageForOutlet } from '../lib/usePageForOutlet';
+import { useCursorPager } from '../lib/pagination';
 import { listInventoryByOutlet, setStock, type InventoryRow } from '../api/inventory';
 import { listMenuByOutlet } from '../api/menu';
 import { ApiError } from '../lib/api';
@@ -33,19 +33,20 @@ export default function Inventory() {
   const user = useAuthStore((s) => s.user);
   const selectedOutletId = useOutletStore((s) => s.selectedOutletId);
   const outletId = user?.role === ROLE_OUTLET ? user?.outletId ?? null : selectedOutletId;
-  const [page, setPage] = usePageForOutlet(outletId);
+  const pager = useCursorPager(outletId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['inventory', outletId, page, PAGE_SIZE],
-    queryFn: () => listInventoryByOutlet(outletId!, { page, limit: PAGE_SIZE }),
+    queryKey: ['inventory', outletId, pager.cursor, PAGE_SIZE],
+    queryFn: () => listInventoryByOutlet(outletId!, { cursor: pager.cursor, limit: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
     enabled: outletId != null,
   });
 
   const { data: menuData } = useQuery({
     queryKey: ['menu', 'outlet', outletId, 1, 100],
-    queryFn: () => listMenuByOutlet(outletId!, { page: 1, limit: 100 }),
+    queryFn: () => listMenuByOutlet(outletId!, { limit: 100 }),
     enabled: outletId != null,
   });
 
@@ -142,7 +143,7 @@ export default function Inventory() {
                   )}
                 </TableBody>
               </Table>
-              <Pagination page={data.page} totalPages={data.totalPages} onPageChange={setPage} />
+              <Pagination pageNumber={pager.pageNumber} hasPrev={pager.hasPrev} hasNext={data.hasMore} onPrev={pager.prev} onNext={() => pager.next(data.nextCursor)} />
             </>
           )}
         </CardContent>

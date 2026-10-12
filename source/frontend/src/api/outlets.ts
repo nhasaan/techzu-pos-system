@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { listQuery, type CursorPage, type ListParams } from '../lib/pagination';
 
 export interface Outlet {
   id: number;
@@ -7,17 +8,8 @@ export interface Outlet {
   createdAt: string | null;
 }
 
-export interface PaginatedOutlets {
-  items: Outlet[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export function listOutlets(params: { page?: number; limit?: number } = {}) {
-  const { page = 1, limit = 20 } = params;
-  return api<PaginatedOutlets>('outlets', { params: { page, limit } });
+export function listOutlets(params: ListParams = {}) {
+  return api<CursorPage<Outlet>>('outlets', { params: listQuery(params) });
 }
 
 export function createOutlet(body: { name: string; address?: string }) {

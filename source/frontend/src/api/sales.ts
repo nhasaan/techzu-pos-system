@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { listQuery, type CursorPage, type ListParams } from '../lib/pagination';
 
 export interface Sale {
   id: number;
@@ -19,14 +20,6 @@ export interface SaleItem {
 
 export interface SaleWithItems extends Sale {
   items: SaleItem[];
-}
-
-export interface PaginatedSales {
-  items: Sale[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
 }
 
 export interface CreateSalePayload {
@@ -53,9 +46,8 @@ export function createSale(body: CreateSalePayload, idempotencyKey?: string) {
   });
 }
 
-export function listSalesByOutlet(outletId: number, params: { page?: number; limit?: number } = {}) {
-  const { page = 1, limit = 20 } = params;
-  return api<PaginatedSales>(`sales/outlet/${outletId}`, { params: { page, limit } });
+export function listSalesByOutlet(outletId: number, params: ListParams = {}) {
+  return api<CursorPage<Sale>>(`sales/outlet/${outletId}`, { params: listQuery(params) });
 }
 
 export function getSale(saleId: number) {

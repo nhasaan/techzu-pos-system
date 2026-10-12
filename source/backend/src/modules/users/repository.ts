@@ -1,4 +1,4 @@
-import { asc, count } from 'drizzle-orm';
+import { asc, gt } from 'drizzle-orm';
 import { db } from '../../shared/db';
 import { users, type UserRole } from '../../shared/db/schema';
 
@@ -12,12 +12,14 @@ const publicColumns = {
 };
 
 export const usersRepository = {
-  async list(limit: number, offset: number) {
-    const [rows, [{ total }]] = await Promise.all([
-      db.select(publicColumns).from(users).orderBy(asc(users.username)).limit(limit).offset(offset),
-      db.select({ total: count() }).from(users),
-    ]);
-    return { rows, total };
+  /** Keyset page ordered by username (unique), served by users_username_unique. */
+  list(limit: number, after?: readonly [string]) {
+    return db
+      .select(publicColumns)
+      .from(users)
+      .where(after ? gt(users.username, after[0]) : undefined)
+      .orderBy(asc(users.username))
+      .limit(limit + 1);
   },
 
   async create(values: { username: string; passwordHash: string; role: UserRole; outletId: number | null }) {

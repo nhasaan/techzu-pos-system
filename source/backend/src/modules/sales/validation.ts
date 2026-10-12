@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { idBody, outletIdParamSchema, paginationQuerySchema, saleIdParamSchema } from '../../shared/utils/schemas';
+import { cursorQuerySchema } from '../../shared/utils/pagination';
+import { idBody, outletIdParamSchema, saleIdParamSchema } from '../../shared/utils/schemas';
 
 const saleItemSchema = z.object({
   menuItemId: idBody,
@@ -17,7 +18,7 @@ export const idempotencyKeySchema = z
   .regex(/^[A-Za-z0-9._:-]{1,100}$/, 'Idempotency-Key must be 1-100 chars of [A-Za-z0-9._:-]')
   .optional();
 
-export const listSalesQuerySchema = paginationQuerySchema;
+export const listSalesQuerySchema = cursorQuerySchema;
 export { outletIdParamSchema, saleIdParamSchema };
 
 export type CreateSaleBody = z.infer<typeof createSaleBodySchema>;

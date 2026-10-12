@@ -40,7 +40,11 @@ export const outlets = pgTable(
     receiptSeq: bigint('receipt_seq', { mode: 'number' }).notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('outlets_name_lower_unique').on(sql`lower(${t.name})`)],
+  (t) => [
+    uniqueIndex('outlets_name_lower_unique').on(sql`lower(${t.name})`),
+    // Keyset pagination order for GET /outlets.
+    index('outlets_name_id_idx').on(t.name, t.id),
+  ],
 );
 
 export const users = pgTable(
@@ -89,6 +93,8 @@ export const menuItems = pgTable(
   },
   (t) => [
     uniqueIndex('menu_items_name_lower_unique').on(sql`lower(${t.name})`),
+    // Keyset pagination order for GET /menu.
+    index('menu_items_name_id_idx').on(t.name, t.id),
     check('menu_items_base_price_non_negative', sql`${t.basePrice} >= 0`),
   ],
 );
@@ -154,7 +160,10 @@ export const sales = pgTable(
   (t) => [
     unique('sales_outlet_receipt_unique').on(t.outletId, t.receiptNumber),
     unique('sales_outlet_idempotency_unique').on(t.outletId, t.idempotencyKey),
-    index('sales_outlet_created_at_idx').on(t.outletId, t.createdAt),
+    // Serves the sales list keyset order (newest first, via a backward scan) and date-range filters.
+    // Deliberately ascending: a DESC NULLS LAST index would not match ORDER BY ... DESC (NULLS FIRST)
+    // and PostgreSQL would sort every remaining row instead of reading the index in order.
+    index('sales_outlet_created_id_idx').on(t.outletId, t.createdAt, t.id),
     check('sales_total_non_negative', sql`${t.totalAmount} >= 0`),
   ],
 );

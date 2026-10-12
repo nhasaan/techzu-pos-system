@@ -43,7 +43,7 @@ function UserNewContent() {
 
   const { data: outletsData } = useQuery({
     queryKey: ['outlets', 1, 100],
-    queryFn: () => listOutlets({ page: 1, limit: 100 }),
+    queryFn: () => listOutlets({ limit: 100 }),
   });
 
   const mutation = useMutation({

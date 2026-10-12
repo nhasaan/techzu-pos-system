@@ -1,11 +1,11 @@
 import { UtensilsCrossed } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth';
 import { ROLE_OUTLET } from '../constants/roles';
 import { useOutletStore } from '../store/outlet';
 import { listMenuByOutlet, type OutletMenuItem } from '../api/menu';
 import Pagination from '../components/Pagination';
-import { usePageForOutlet } from '../lib/usePageForOutlet';
+import { useCursorPager } from '../lib/pagination';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
@@ -16,11 +16,12 @@ export default function Menu() {
   const user = useAuthStore((s) => s.user);
   const selectedOutletId = useOutletStore((s) => s.selectedOutletId);
   const outletId = user?.role === ROLE_OUTLET ? user?.outletId ?? null : selectedOutletId;
-  const [page, setPage] = usePageForOutlet(outletId);
+  const pager = useCursorPager(outletId);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['menu', 'outlet', outletId, page, PAGE_SIZE],
-    queryFn: () => listMenuByOutlet(outletId!, { page, limit: PAGE_SIZE }),
+    queryKey: ['menu', 'outlet', outletId, pager.cursor, PAGE_SIZE],
+    queryFn: () => listMenuByOutlet(outletId!, { cursor: pager.cursor, limit: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
     enabled: outletId != null,
   });
 
@@ -90,7 +91,7 @@ export default function Menu() {
                   )}
                 </TableBody>
               </Table>
-              <Pagination page={data.page} totalPages={data.totalPages} onPageChange={setPage} />
+              <Pagination pageNumber={pager.pageNumber} hasPrev={pager.hasPrev} hasNext={data.hasMore} onPrev={pager.prev} onNext={() => pager.next(data.nextCursor)} />
             </>
           )}
         </CardContent>

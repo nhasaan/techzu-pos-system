@@ -149,6 +149,45 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
       expect(res.body.data.items[0].itemName).toBe('Bagel');
     });
 
+    it('pages through sales with a stable cursor: no gaps or duplicates, even with concurrent inserts', async () => {
+      // Sales created in the same millisecond but different microseconds: a cursor built from a JS
+      // Date (ms precision) would skip some of these.
+      await pool.query(
+        `INSERT INTO sales (outlet_id, receipt_number, total_amount, created_at)
+         SELECT $1, 'us-' || g, 1.00, timestamptz '2000-01-01 00:00:00.123000+00' + g * interval '1 microsecond'
+         FROM generate_series(1, 9) g`,
+        [mainId],
+      );
+      const { rows: [{ n }] } = await pool.query('SELECT count(*)::int AS n FROM sales WHERE outlet_id = $1', [mainId]);
+
+      const seen: number[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      do {
+        const res: { body: { data: { items: { id: number }[]; nextCursor: string | null } } } = await api()
+          .get(`/api/sales/outlet/${mainId}`)
+          .query({ limit: 4, ...(cursor ? { cursor } : {}) })
+          .set(bearer(outletAdmin))
+          .expect(200);
+        seen.push(...res.body.data.items.map((i: { id: number }) => i.id));
+        expect(res.body.data).not.toHaveProperty('total');
+        cursor = res.body.data.nextCursor;
+        // A sale created mid-pagination is newer than the cursor, so it never shifts later pages.
+        if (pages++ === 1) {
+          await api().post('/api/sales').set(bearer(outletAdmin)).send({ items: [{ menuItemId: item.Bagel, quantity: 1 }] }).expect(201);
+        }
+      } while (cursor);
+
+      expect(new Set(seen).size).toBe(seen.length);
+      expect(seen).toHaveLength(n);
+    });
+
+    it('rejects malformed cursors with 422', async () => {
+      const res = await api().get(`/api/sales/outlet/${mainId}?cursor=eyJ4IjoxfQ`).set(bearer(outletAdmin));
+      expect(res.status).toBe(422);
+      expect(res.body.errors).toHaveProperty('cursor');
+    });
+
     it('returns the receipt with item names', async () => {
       const list = await api().get(`/api/sales/outlet/${mainId}`).set(bearer(outletAdmin)).expect(200);
       const saleId = list.body.data.items[0].id;
@@ -160,14 +199,14 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
   describe('reports', () => {
     it('summarises revenue for an outlet', async () => {
       const res = await api().get(`/api/reports/outlet/${mainId}/summary`).set(bearer(hq)).expect(200);
-      // 20 x 11.00 + 3 single-bagel sales x 3.25 (incl. the idempotent one)
-      expect(res.body.data).toMatchObject({ outletId: mainId, transactionCount: 23, totalRevenue: 229.75 });
+      // 20 x 11.00 + 4 single-bagel sales x 3.25 (incl. the idempotent one) + 9 x 1.00 (pagination fixture)
+      expect(res.body.data).toMatchObject({ outletId: mainId, transactionCount: 33, totalRevenue: 242 });
     });
 
     it('lists top items by quantity', async () => {
       const res = await api().get(`/api/reports/outlet/${mainId}/top-items`).set(bearer(outletAdmin)).expect(200);
       expect(res.body.data.items.map((i: { name: string; quantitySold: number }) => [i.name, i.quantitySold])).toEqual([
-        ['Bagel', 43],
+        ['Bagel', 44],
         ['Latte', 20],
       ]);
     });
@@ -186,8 +225,8 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
     });
 
     it('filters by date range', async () => {
-      const res = await api().get(`/api/reports/outlet/${mainId}/summary?dateFrom=2000-01-01&dateTo=2000-01-31`).set(bearer(hq)).expect(200);
-      expect(res.body.data.transactionCount).toBe(0);
+      const res = await api().get(`/api/reports/outlet/${mainId}/summary?dateFrom=2000-01-01&dateTo=2000-01-01`).set(bearer(hq)).expect(200);
+      expect(res.body.data.transactionCount).toBe(9); // only the fixture sales dated 2000-01-01
     });
   });
 });

@@ -1,6 +1,6 @@
 import { ValidationError } from '../../shared/utils/errors';
 import { isForeignKeyViolation } from '../../shared/utils/pg-errors';
-import { paginate } from '../../shared/utils/schemas';
+import { decodeCursor, nameIdKey, toCursorPage } from '../../shared/utils/pagination';
 import { inventoryRepository } from './repository';
 import type { SetStockBody } from './validation';
 
@@ -15,7 +15,7 @@ export async function setStock(body: SetStockBody) {
   }
 }
 
-export async function listByOutlet(outletId: number, page: number, limit: number) {
-  const { rows, total } = await inventoryRepository.listByOutlet(outletId, limit, (page - 1) * limit);
-  return paginate(rows, total, page, limit);
+export async function listByOutlet(outletId: number, cursor: string | undefined, limit: number) {
+  const rows = await inventoryRepository.listByOutlet(outletId, limit, decodeCursor(cursor, nameIdKey));
+  return toCursorPage(rows, limit, (r) => [r.itemName, r.menuItemId]);
 }

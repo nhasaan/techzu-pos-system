@@ -1,4 +1,4 @@
-import { asc, count, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { db } from '../../shared/db';
 import { outlets } from '../../shared/db/schema';
 
@@ -10,12 +10,14 @@ const publicColumns = {
 };
 
 export const outletsRepository = {
-  async list(limit: number, offset: number) {
-    const [rows, [{ total }]] = await Promise.all([
-      db.select(publicColumns).from(outlets).orderBy(asc(outlets.name)).limit(limit).offset(offset),
-      db.select({ total: count() }).from(outlets),
-    ]);
-    return { rows, total };
+  /** Keyset page ordered by (name, id); served by outlets_name_id_idx. */
+  list(limit: number, after?: readonly [string, number]) {
+    return db
+      .select(publicColumns)
+      .from(outlets)
+      .where(after ? sql`(${outlets.name}, ${outlets.id}) > (${after[0]}, ${after[1]})` : undefined)
+      .orderBy(asc(outlets.name), asc(outlets.id))
+      .limit(limit + 1);
   },
 
   async create(values: { name: string; address: string | null }) {

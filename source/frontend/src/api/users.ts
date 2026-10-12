@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { listQuery, type CursorPage, type ListParams } from '../lib/pagination';
 
 export interface User {
   id: number;
@@ -8,17 +9,8 @@ export interface User {
   createdAt: string | null;
 }
 
-export interface PaginatedUsers {
-  items: User[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export function listUsers(params: { page?: number; limit?: number } = {}) {
-  const { page = 1, limit = 20 } = params;
-  return api<PaginatedUsers>('users', { params: { page, limit } });
+export function listUsers(params: ListParams = {}) {
+  return api<CursorPage<User>>('users', { params: listQuery(params) });
 }
 
 export function createUser(body: { username: string; password: string; role: string; outletId?: number }) {

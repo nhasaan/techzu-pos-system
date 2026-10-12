@@ -1,7 +1,7 @@
 import { db } from '../../shared/db';
 import { ConflictError, NotFoundError, ValidationError } from '../../shared/utils/errors';
 import { isUniqueViolation } from '../../shared/utils/pg-errors';
-import { paginate } from '../../shared/utils/schemas';
+import { decodeCursor, timestampIdKey, toCursorPage } from '../../shared/utils/pagination';
 import { salesRepository } from './repository';
 import type { SaleItemInput } from './validation';
 
@@ -119,9 +119,14 @@ async function replay(saleId: number, lines: { menuItemId: number; quantity: num
   return { sale, items, receiptNumber: sale.receiptNumber, totalAmount: sale.totalAmount };
 }
 
-export async function listByOutlet(outletId: number, page: number, limit: number) {
-  const { rows, total } = await salesRepository.listByOutlet(outletId, limit, (page - 1) * limit);
-  return paginate(rows, total, page, limit);
+export async function listByOutlet(outletId: number, cursor: string | undefined, limit: number) {
+  const rows = await salesRepository.listByOutlet(outletId, limit, decodeCursor(cursor, timestampIdKey));
+  return toCursorPage(
+    rows,
+    limit,
+    (r) => [r.cursorTs, r.id],
+    ({ cursorTs: _cursorTs, ...sale }) => sale,
+  );
 }
 
 export async function getSaleWithItems(saleId: number) {

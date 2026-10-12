@@ -2,13 +2,13 @@ import argon2 from 'argon2';
 import { ROLE_OUTLET } from '../../shared/db/schema';
 import { ConflictError, ValidationError } from '../../shared/utils/errors';
 import { isForeignKeyViolation, isUniqueViolation } from '../../shared/utils/pg-errors';
-import { paginate } from '../../shared/utils/schemas';
+import { decodeCursor, textKey, toCursorPage } from '../../shared/utils/pagination';
 import { usersRepository } from './repository';
 import type { CreateUserBody } from './validation';
 
-export async function listUsers(page: number, limit: number) {
-  const { rows, total } = await usersRepository.list(limit, (page - 1) * limit);
-  return paginate(rows, total, page, limit);
+export async function listUsers(cursor: string | undefined, limit: number) {
+  const rows = await usersRepository.list(limit, decodeCursor(cursor, textKey));
+  return toCursorPage(rows, limit, (r) => [r.username]);
 }
 
 export async function createUser(body: CreateUserBody) {

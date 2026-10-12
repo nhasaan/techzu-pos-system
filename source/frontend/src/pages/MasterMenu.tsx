@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, keepPreviousData, useQueryClient } from '@tanstack/react-query';
 import { UtensilsCrossed, Plus, Link2 } from 'lucide-react';
 import RequireHQOrSuperadmin from '../components/RequireHQOrSuperadmin';
 import Pagination from '../components/Pagination';
+import { useCursorPager } from '../lib/pagination';
 import { listMasterMenu, createMenuItem, assignToOutlet, type MenuItem } from '../api/menu';
 import { listOutlets } from '../api/outlets';
 import { ApiError } from '../lib/api';
@@ -36,24 +37,25 @@ type AssignForm = z.infer<typeof assignSchema>;
 const PAGE_SIZE = 20;
 
 function MasterMenuContent() {
-  const [page, setPage] = useState(1);
+  const pager = useCursorPager(null);
   const [addOpen, setAddOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['menu', 'master', page, PAGE_SIZE],
-    queryFn: () => listMasterMenu({ page, limit: PAGE_SIZE }),
+    queryKey: ['menu', 'master', pager.cursor, PAGE_SIZE],
+    queryFn: () => listMasterMenu({ cursor: pager.cursor, limit: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
   });
 
   const { data: outletsData } = useQuery({
     queryKey: ['outlets', 1, 100],
-    queryFn: () => listOutlets({ page: 1, limit: 100 }),
+    queryFn: () => listOutlets({ limit: 100 }),
   });
 
   const { data: allMenuData } = useQuery({
     queryKey: ['menu', 'master', 1, 100],
-    queryFn: () => listMasterMenu({ page: 1, limit: 100 }),
+    queryFn: () => listMasterMenu({ limit: 100 }),
     enabled: assignOpen,
   });
 
@@ -154,7 +156,7 @@ function MasterMenuContent() {
                   )}
                 </TableBody>
               </Table>
-              <Pagination page={data.page} totalPages={data.totalPages} onPageChange={setPage} />
+              <Pagination pageNumber={pager.pageNumber} hasPrev={pager.hasPrev} hasNext={data.hasMore} onPrev={pager.prev} onNext={() => pager.next(data.nextCursor)} />
             </>
           )}
         </CardContent>

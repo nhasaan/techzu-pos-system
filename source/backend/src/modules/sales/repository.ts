@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db, type DbExecutor } from '../../shared/db';
 import { inventory, menuItems, outletMenuItems, outlets, saleItems, sales } from '../../shared/db/schema';
 
@@ -113,17 +113,22 @@ export const salesRepository = {
       .orderBy(saleItems.id);
   },
 
-  async listByOutlet(outletId: number, limit: number, offset: number) {
-    const [rows, [{ total }]] = await Promise.all([
-      db
-        .select(saleColumns)
-        .from(sales)
-        .where(eq(sales.outletId, outletId))
-        .orderBy(desc(sales.createdAt), desc(sales.id))
-        .limit(limit)
-        .offset(offset),
-      db.select({ total: count() }).from(sales).where(eq(sales.outletId, outletId)),
-    ]);
-    return { rows, total };
+  /**
+   * Keyset page of an outlet's sales, newest first, ordered by (created_at DESC, id DESC) and served
+   * by sales_outlet_created_id_idx: constant cost per page however many sales the outlet has.
+   * created_at is also returned as PostgreSQL text so the cursor keeps microsecond precision.
+   */
+  listByOutlet(outletId: number, limit: number, before?: readonly [string, number]) {
+    return db
+      .select({ ...saleColumns, cursorTs: sql<string>`${sales.createdAt}::text` })
+      .from(sales)
+      .where(
+        and(
+          eq(sales.outletId, outletId),
+          before ? sql`(${sales.createdAt}, ${sales.id}) < (${before[0]}::timestamptz, ${before[1]})` : undefined,
+        ),
+      )
+      .orderBy(desc(sales.createdAt), desc(sales.id))
+      .limit(limit + 1);
   },
 };

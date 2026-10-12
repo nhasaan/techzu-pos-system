@@ -16,10 +16,9 @@ const paginated = (item: string) =>
     type: 'object',
     properties: {
       items: { type: 'array', items: ref(item) },
-      total: { type: 'integer' },
-      page: { type: 'integer' },
+      nextCursor: { type: 'string', nullable: true, description: 'Pass as ?cursor= for the next page; null on the last page' },
+      hasMore: { type: 'boolean' },
       limit: { type: 'integer' },
-      totalPages: { type: 'integer' },
     },
   });
 const ok = (description: string, schema: any, status = '200') => ({
@@ -30,7 +29,10 @@ const errors = (...codes: number[]) =>
 const body = (schema: any) => ({ required: true, content: { 'application/json': { schema } } });
 const pathId = (name: string) => ({ name, in: 'path', required: true, schema: { type: 'integer', minimum: 1 } });
 const query = (name: string, schema: any, description?: string) => ({ name, in: 'query', required: false, schema, description });
-const pagination = [query('page', { type: 'integer', minimum: 1, default: 1 }), query('limit', { type: 'integer', minimum: 1, maximum: 100, default: 20 })];
+const pagination = [
+  query('cursor', { type: 'string' }, 'Opaque cursor from the previous page (keyset pagination; omit for the first page)'),
+  query('limit', { type: 'integer', minimum: 1, maximum: 100, default: 20 }),
+];
 const dateRange = [query('dateFrom', { type: 'string', format: 'date' }, 'Inclusive, UTC'), query('dateTo', { type: 'string', format: 'date' }, 'Inclusive, UTC')];
 const secured = { security: [{ bearerAuth: [] }] };
 

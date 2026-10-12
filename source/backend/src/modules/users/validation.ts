@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { ROLE_OUTLET, USER_ROLES } from '../../shared/db/schema';
-import { idBody, paginationQuerySchema } from '../../shared/utils/schemas';
+import { cursorQuerySchema } from '../../shared/utils/pagination';
+import { idBody } from '../../shared/utils/schemas';
 
-export const listUsersQuerySchema = paginationQuerySchema;
+export const listUsersQuerySchema = cursorQuerySchema;
 
 export const createUserBodySchema = z
   .object({

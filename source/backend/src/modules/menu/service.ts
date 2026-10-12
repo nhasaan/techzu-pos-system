@@ -1,6 +1,6 @@
 import { ConflictError, ValidationError } from '../../shared/utils/errors';
 import { isForeignKeyViolation, isUniqueViolation } from '../../shared/utils/pg-errors';
-import { paginate, type Paginated } from '../../shared/utils/schemas';
+import { decodeCursor, nameIdKey, toCursorPage, type CursorPage } from '../../shared/utils/pagination';
 import { outletMenuCache } from './cache';
 import { menuRepository, type OutletMenuRow } from './repository';
 import type { AssignToOutletBody, CreateMenuItemBody } from './validation';
@@ -18,9 +18,9 @@ export async function createMenuItem(body: CreateMenuItemBody) {
   }
 }
 
-export async function listMasterMenu(page: number, limit: number) {
-  const { rows, total } = await menuRepository.listItems(limit, (page - 1) * limit);
-  return paginate(rows, total, page, limit);
+export async function listMasterMenu(cursor: string | undefined, limit: number) {
+  const rows = await menuRepository.listItems(limit, decodeCursor(cursor, nameIdKey));
+  return toCursorPage(rows, limit, (r) => [r.name, r.id]);
 }
 
 export async function assignToOutlet(body: AssignToOutletBody) {
@@ -43,12 +43,13 @@ export async function assignToOutlet(body: AssignToOutletBody) {
   return { ...row, menuItem };
 }
 
-export async function listByOutlet(outletId: number, page: number, limit: number): Promise<Paginated<OutletMenuRow>> {
-  const cached = await outletMenuCache.get<Paginated<OutletMenuRow>>(outletId, page, limit);
+export async function listByOutlet(outletId: number, cursor: string | undefined, limit: number): Promise<CursorPage<OutletMenuRow>> {
+  const after = decodeCursor(cursor, nameIdKey);
+  const cached = await outletMenuCache.get<CursorPage<OutletMenuRow>>(outletId, cursor, limit);
   if (cached.value) return cached.value;
 
-  const { rows, total } = await menuRepository.listByOutlet(outletId, limit, (page - 1) * limit);
-  const result = paginate(rows, total, page, limit);
-  await outletMenuCache.set(outletId, cached.version, page, limit, result);
+  const rows = await menuRepository.listByOutlet(outletId, limit, after);
+  const result = toCursorPage(rows, limit, (r) => [r.name, r.id]);
+  await outletMenuCache.set(outletId, cached.version, cursor, limit, result);
   return result;
 }

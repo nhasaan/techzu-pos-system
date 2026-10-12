@@ -14,7 +14,7 @@ export default function OutletSelector() {
   const isHQOrSuperadmin = user?.role === ROLE_HQ || user?.role === ROLE_SUPERADMIN;
   const { data, isLoading } = useQuery({
     queryKey: ['outlets', 1, 100],
-    queryFn: () => listOutlets({ page: 1, limit: 100 }),
+    queryFn: () => listOutlets({ limit: 100 }),
     enabled: isHQOrSuperadmin,
   });
 

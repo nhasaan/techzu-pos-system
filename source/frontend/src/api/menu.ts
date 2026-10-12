@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { listQuery, type CursorPage, type ListParams } from '../lib/pagination';
 
 export interface MenuItem {
   id: number;
@@ -13,17 +14,8 @@ export interface OutletMenuItem extends MenuItem {
   isActive: boolean | null;
 }
 
-export interface Paginated<T> {
-  items: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export function listMasterMenu(params: { page?: number; limit?: number } = {}) {
-  const { page = 1, limit = 20 } = params;
-  return api<Paginated<MenuItem>>('menu', { params: { page, limit } });
+export function listMasterMenu(params: ListParams = {}) {
+  return api<CursorPage<MenuItem>>('menu', { params: listQuery(params) });
 }
 
 export function createMenuItem(body: { name: string; basePrice: string; description?: string }) {
@@ -34,7 +26,6 @@ export function assignToOutlet(body: { outletId: number; menuItemId: number; pri
   return api<unknown>('menu/assign', { method: 'POST', body: JSON.stringify(body) });
 }
 
-export function listMenuByOutlet(outletId: number, params: { page?: number; limit?: number } = {}) {
-  const { page = 1, limit = 20 } = params;
-  return api<Paginated<OutletMenuItem>>(`menu/outlet/${outletId}`, { params: { page, limit } });
+export function listMenuByOutlet(outletId: number, params: ListParams = {}) {
+  return api<CursorPage<OutletMenuItem>>(`menu/outlet/${outletId}`, { params: listQuery(params) });
 }

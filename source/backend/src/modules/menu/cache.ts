@@ -5,18 +5,18 @@ import { cacheGet, cacheIncr, cacheSet } from '../../shared/utils/redis';
 // so stale pages are simply never read again and expire on their own.
 const TTL_SEC = 300;
 const versionKey = (outletId: number) => `menu:outlet:${outletId}:ver`;
-const pageKey = (outletId: number, version: string, page: number, limit: number) =>
-  `menu:outlet:${outletId}:v${version}:p${page}:l${limit}`;
+const pageKey = (outletId: number, version: string, cursor: string | undefined, limit: number) =>
+  `menu:outlet:${outletId}:v${version}:c${cursor ?? ''}:l${limit}`;
 
 export const outletMenuCache = {
-  async get<T>(outletId: number, page: number, limit: number): Promise<{ value: T | null; version: string }> {
+  async get<T>(outletId: number, cursor: string | undefined, limit: number): Promise<{ value: T | null; version: string }> {
     const version = (await cacheGet(versionKey(outletId))) ?? '0';
-    const raw = await cacheGet(pageKey(outletId, version, page, limit));
+    const raw = await cacheGet(pageKey(outletId, version, cursor, limit));
     return { value: raw ? (JSON.parse(raw) as T) : null, version };
   },
 
-  async set(outletId: number, version: string, page: number, limit: number, value: unknown) {
-    await cacheSet(pageKey(outletId, version, page, limit), JSON.stringify(value), TTL_SEC);
+  async set(outletId: number, version: string, cursor: string | undefined, limit: number, value: unknown) {
+    await cacheSet(pageKey(outletId, version, cursor, limit), JSON.stringify(value), TTL_SEC);
   },
 
   async invalidate(outletId: number) {

@@ -1,12 +1,12 @@
 import { ConflictError } from '../../shared/utils/errors';
 import { isUniqueViolation } from '../../shared/utils/pg-errors';
-import { paginate } from '../../shared/utils/schemas';
+import { decodeCursor, nameIdKey, toCursorPage } from '../../shared/utils/pagination';
 import { outletsRepository } from './repository';
 import type { CreateOutletBody } from './validation';
 
-export async function listOutlets(page: number, limit: number) {
-  const { rows, total } = await outletsRepository.list(limit, (page - 1) * limit);
-  return paginate(rows, total, page, limit);
+export async function listOutlets(cursor: string | undefined, limit: number) {
+  const rows = await outletsRepository.list(limit, decodeCursor(cursor, nameIdKey));
+  return toCursorPage(rows, limit, (r) => [r.name, r.id]);
 }
 
 export async function createOutlet(body: CreateOutletBody) {

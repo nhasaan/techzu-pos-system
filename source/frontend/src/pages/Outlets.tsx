@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Store, Plus } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import RequireHQOrSuperadmin from '../components/RequireHQOrSuperadmin';
 import Pagination from '../components/Pagination';
+import { useCursorPager } from '../lib/pagination';
 import { listOutlets, type Outlet } from '../api/outlets';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
@@ -13,11 +13,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 const PAGE_SIZE = 20;
 
 function OutletsContent() {
-  const [page, setPage] = useState(1);
+  const pager = useCursorPager(null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['outlets', page, PAGE_SIZE],
-    queryFn: () => listOutlets({ page, limit: PAGE_SIZE }),
+    queryKey: ['outlets', pager.cursor, PAGE_SIZE],
+    queryFn: () => listOutlets({ cursor: pager.cursor, limit: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -70,7 +71,7 @@ function OutletsContent() {
                   )}
                 </TableBody>
               </Table>
-              <Pagination page={data.page} totalPages={data.totalPages} onPageChange={setPage} />
+              <Pagination pageNumber={pager.pageNumber} hasPrev={pager.hasPrev} hasNext={data.hasMore} onPrev={pager.prev} onNext={() => pager.next(data.nextCursor)} />
             </>
           )}
         </CardContent>

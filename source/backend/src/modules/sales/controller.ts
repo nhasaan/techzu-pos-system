@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { assertOutletAccess, currentUser, isOutletUser } from '../../shared/utils/auth';
 import { ForbiddenError, NotFoundError, ValidationError } from '../../shared/utils/errors';
 import { success } from '../../shared/utils/response';
-import type { PaginationQuery } from '../../shared/utils/schemas';
+import type { CursorQuery } from '../../shared/utils/pagination';
 import * as salesService from './service';
 import { idempotencyKeySchema, type CreateSaleBody } from './validation';
 
@@ -38,9 +38,9 @@ export const salesController = {
 
   async listByOutlet(req: Request, res: Response) {
     const { outletId } = req.params as unknown as { outletId: number };
-    const { page, limit } = req.query as unknown as PaginationQuery;
+    const { cursor, limit } = req.query as unknown as CursorQuery;
     assertOutletAccess(currentUser(req), outletId);
-    res.json(success('OK', await salesService.listByOutlet(outletId, page, limit)));
+    res.json(success('OK', await salesService.listByOutlet(outletId, cursor, limit)));
   },
 
   async getById(req: Request, res: Response) {

@@ -1,4 +1,4 @@
-import { asc, count, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '../../shared/db';
 import { inventory, menuItems } from '../../shared/db/schema';
 
@@ -15,25 +15,26 @@ export const inventoryRepository = {
     return row;
   },
 
-  async listByOutlet(outletId: number, limit: number, offset: number) {
-    const [rows, [{ total }]] = await Promise.all([
-      db
-        .select({
-          id: inventory.id,
-          outletId: inventory.outletId,
-          menuItemId: inventory.menuItemId,
-          stock: inventory.stock,
-          updatedAt: inventory.updatedAt,
-          itemName: menuItems.name,
-        })
-        .from(inventory)
-        .innerJoin(menuItems, eq(inventory.menuItemId, menuItems.id))
-        .where(eq(inventory.outletId, outletId))
-        .orderBy(asc(menuItems.name), asc(inventory.menuItemId))
-        .limit(limit)
-        .offset(offset),
-      db.select({ total: count() }).from(inventory).where(eq(inventory.outletId, outletId)),
-    ]);
-    return { rows, total };
+  /** Keyset page of an outlet's stock ordered by (item name, menu_item_id); bounded by menu size. */
+  listByOutlet(outletId: number, limit: number, after?: readonly [string, number]) {
+    return db
+      .select({
+        id: inventory.id,
+        outletId: inventory.outletId,
+        menuItemId: inventory.menuItemId,
+        stock: inventory.stock,
+        updatedAt: inventory.updatedAt,
+        itemName: menuItems.name,
+      })
+      .from(inventory)
+      .innerJoin(menuItems, eq(inventory.menuItemId, menuItems.id))
+      .where(
+        and(
+          eq(inventory.outletId, outletId),
+          after ? sql`(${menuItems.name}, ${inventory.menuItemId}) > (${after[0]}, ${after[1]})` : undefined,
+        ),
+      )
+      .orderBy(asc(menuItems.name), asc(inventory.menuItemId))
+      .limit(limit + 1);
   },
 };

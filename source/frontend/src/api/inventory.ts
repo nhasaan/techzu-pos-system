@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { listQuery, type CursorPage, type ListParams } from '../lib/pagination';
 
 export interface InventoryRow {
   id: number;
@@ -9,17 +10,8 @@ export interface InventoryRow {
   itemName?: string | null;
 }
 
-export interface PaginatedInventory {
-  items: InventoryRow[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export function listInventoryByOutlet(outletId: number, params: { page?: number; limit?: number } = {}) {
-  const { page = 1, limit = 20 } = params;
-  return api<PaginatedInventory>(`inventory/outlet/${outletId}`, { params: { page, limit } });
+export function listInventoryByOutlet(outletId: number, params: ListParams = {}) {
+  return api<CursorPage<InventoryRow>>(`inventory/outlet/${outletId}`, { params: listQuery(params) });
 }
 
 export function setStock(body: { outletId: number; menuItemId: number; stock: number }) {

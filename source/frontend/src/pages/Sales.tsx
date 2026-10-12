@@ -4,11 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link } from 'react-router-dom';
 import { Receipt, Plus, FileText } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, keepPreviousData, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth';
 import { useOutletStore } from '../store/outlet';
 import Pagination from '../components/Pagination';
-import { usePageForOutlet } from '../lib/usePageForOutlet';
+import { useCursorPager } from '../lib/pagination';
 import { listSalesByOutlet, createSale, type Sale } from '../api/sales';
 import { listMenuByOutlet } from '../api/menu';
 import { ApiError } from '../lib/api';
@@ -38,21 +38,22 @@ export default function Sales() {
   const user = useAuthStore((s) => s.user);
   const selectedOutletId = useOutletStore((s) => s.selectedOutletId);
   const outletId = user?.role === ROLE_OUTLET ? user?.outletId ?? null : selectedOutletId;
-  const [page, setPage] = usePageForOutlet(outletId);
+  const pager = useCursorPager(outletId);
   const [dialogOpen, setDialogOpen] = useState(false);
   // One key per checkout; retries of the same checkout reuse it.
   const [idempotencyKey, setIdempotencyKey] = useState(() => uuid());
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['sales', outletId, page, PAGE_SIZE],
-    queryFn: () => listSalesByOutlet(outletId!, { page, limit: PAGE_SIZE }),
+    queryKey: ['sales', outletId, pager.cursor, PAGE_SIZE],
+    queryFn: () => listSalesByOutlet(outletId!, { cursor: pager.cursor, limit: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
     enabled: outletId != null,
   });
 
   const { data: menuData } = useQuery({
     queryKey: ['menu', 'outlet', outletId, 1, 100],
-    queryFn: () => listMenuByOutlet(outletId!, { page: 1, limit: 100 }),
+    queryFn: () => listMenuByOutlet(outletId!, { limit: 100 }),
     enabled: outletId != null && dialogOpen,
   });
 
@@ -169,7 +170,7 @@ export default function Sales() {
                   )}
                 </TableBody>
               </Table>
-              <Pagination page={data.page} totalPages={data.totalPages} onPageChange={setPage} />
+              <Pagination pageNumber={pager.pageNumber} hasPrev={pager.hasPrev} hasNext={data.hasMore} onPrev={pager.prev} onNext={() => pager.next(data.nextCursor)} />
             </>
           )}
         </CardContent>

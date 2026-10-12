@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { assertOutletAccess, currentUser } from '../../shared/utils/auth';
 import { success } from '../../shared/utils/response';
-import type { PaginationQuery } from '../../shared/utils/schemas';
+import type { CursorQuery } from '../../shared/utils/pagination';
 import * as inventoryService from './service';
 import type { SetStockBody } from './validation';
 
@@ -16,8 +16,8 @@ export const inventoryController = {
 
   async listByOutlet(req: Request, res: Response) {
     const { outletId } = req.params as unknown as { outletId: number };
-    const { page, limit } = req.query as unknown as PaginationQuery;
+    const { cursor, limit } = req.query as unknown as CursorQuery;
     assertOutletAccess(currentUser(req), outletId);
-    res.json(success('OK', await inventoryService.listByOutlet(outletId, page, limit)));
+    res.json(success('OK', await inventoryService.listByOutlet(outletId, cursor, limit)));
   },
 };

@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Users as UsersIcon, Plus } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { listUsers, type User } from '../api/users';
 import RequireSuperadmin from '../components/RequireSuperadmin';
 import { ROLE_LABELS, type UserRole } from '../constants/roles';
@@ -9,16 +8,18 @@ import { buttonVariants } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import Pagination from '../components/Pagination';
+import { useCursorPager } from '../lib/pagination';
 import { cn } from '../lib/utils';
 
 const PAGE_SIZE = 20;
 
 function UsersContent() {
-  const [page, setPage] = useState(1);
+  const pager = useCursorPager(null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['users', page, PAGE_SIZE],
-    queryFn: () => listUsers({ page, limit: PAGE_SIZE }),
+    queryKey: ['users', pager.cursor, PAGE_SIZE],
+    queryFn: () => listUsers({ cursor: pager.cursor, limit: PAGE_SIZE }),
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -72,7 +73,7 @@ function UsersContent() {
                   )}
                 </TableBody>
               </Table>
-              <Pagination page={data.page} totalPages={data.totalPages} onPageChange={setPage} />
+              <Pagination pageNumber={pager.pageNumber} hasPrev={pager.hasPrev} hasNext={data.hasMore} onPrev={pager.prev} onNext={() => pager.next(data.nextCursor)} />
             </>
           )}
         </CardContent>

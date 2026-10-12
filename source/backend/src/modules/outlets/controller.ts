@@ -1,13 +1,13 @@
 import type { Request, Response } from 'express';
 import { success } from '../../shared/utils/response';
-import type { PaginationQuery } from '../../shared/utils/schemas';
+import type { CursorQuery } from '../../shared/utils/pagination';
 import * as outletsService from './service';
 import type { CreateOutletBody } from './validation';
 
 export const outletsController = {
   async list(req: Request, res: Response) {
-    const { page, limit } = req.query as unknown as PaginationQuery;
-    res.json(success('OK', await outletsService.listOutlets(page, limit)));
+    const { cursor, limit } = req.query as unknown as CursorQuery;
+    res.json(success('OK', await outletsService.listOutlets(cursor, limit)));
   },
 
   async create(req: Request, res: Response) {
