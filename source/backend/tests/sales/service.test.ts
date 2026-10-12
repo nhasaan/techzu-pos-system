@@ -180,6 +180,11 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
       expect(own.body.data.items[0].outletId).toBe(mainId);
     });
 
+    it('rejects impossible calendar dates', async () => {
+      const res = await api().get(`/api/reports/outlet/${mainId}/summary?dateFrom=2026-02-31`).set(bearer(hq));
+      expect(res.status).toBe(422);
+    });
+
     it('filters by date range', async () => {
       const res = await api().get(`/api/reports/outlet/${mainId}/summary?dateFrom=2000-01-01&dateTo=2000-01-31`).set(bearer(hq)).expect(200);
       expect(res.body.data.transactionCount).toBe(0);

@@ -38,7 +38,13 @@ export const moneySchema = z.union([
   z.number().nonnegative().max(99_999_999.99).transform((n) => n.toFixed(2)),
 ]);
 
-export const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').refine(
-  (s) => !Number.isNaN(Date.parse(`${s}T00:00:00Z`)),
-  'Invalid date',
-);
+// Date.parse happily rolls 2026-02-31 over to March 3, so require an exact round trip.
+const isRealCalendarDate = (s: string) => {
+  const t = Date.parse(`${s}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s;
+};
+
+export const isoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+  .refine(isRealCalendarDate, 'Invalid calendar date');

@@ -10,6 +10,12 @@ describe('reports validation', () => {
     expect(ok(salesSummaryQuerySchema, { dateFrom: '01/02/2026' })).toBe(false);
   });
 
+  it('rejects dates that do not exist', () => {
+    expect(ok(salesSummaryQuerySchema, { dateFrom: '2026-02-31' })).toBe(false);
+    expect(ok(salesSummaryQuerySchema, { dateFrom: '2026-02-29' })).toBe(false);
+    expect(ok(salesSummaryQuerySchema, { dateFrom: '2024-02-29' })).toBe(true);
+  });
+
   it('defaults top-items limit to 5 and caps it at 20', () => {
     expect(topItemsQuerySchema.parse({}).limit).toBe(5);
     expect(ok(topItemsQuerySchema, { limit: '21' })).toBe(false);
