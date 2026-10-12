@@ -238,9 +238,27 @@ export const openApiDocument = {
         requestBody: body({
           type: 'object',
           required: ['outletId', 'menuItemId', 'stock'],
-          properties: { outletId: { type: 'integer' }, menuItemId: { type: 'integer' }, stock: { type: 'integer', minimum: 0 } },
+          properties: {
+            outletId: { type: 'integer' },
+            menuItemId: { type: 'integer' },
+            stock: { type: 'integer', minimum: 0 },
+            expectedStock: { type: 'integer', minimum: 0, description: 'Optional: reject with 409 if stock changed since it was read' },
+          },
         }),
-        responses: { ...ok('Updated row', envelope(ref('InventoryRow'))), ...errors(401, 403, 422) },
+        responses: { ...ok('Updated row', envelope(ref('InventoryRow'))), ...errors(401, 403, 409, 422) },
+      },
+    },
+    '/api/inventory/adjust': {
+      post: {
+        tags: ['inventory'],
+        summary: 'Add or remove stock atomically (stock = stock + delta; never below 0)',
+        ...secured,
+        requestBody: body({
+          type: 'object',
+          required: ['outletId', 'menuItemId', 'delta'],
+          properties: { outletId: { type: 'integer' }, menuItemId: { type: 'integer' }, delta: { type: 'integer', description: 'Non-zero; negative removes stock' } },
+        }),
+        responses: { ...ok('Updated row', envelope(ref('InventoryRow'))), ...errors(401, 403, 409, 422) },
       },
     },
     '/api/inventory/outlet/{outletId}': {

@@ -8,7 +8,7 @@ import { useAuthStore } from '../store/auth';
 import { useOutletStore } from '../store/outlet';
 import Pagination from '../components/Pagination';
 import { fetchAllPages, useCursorPager } from '../lib/pagination';
-import { listInventoryByOutlet, setStock, type InventoryRow } from '../api/inventory';
+import { adjustStock, listInventoryByOutlet, setStock, type InventoryRow } from '../api/inventory';
 import { listMenuByOutlet } from '../api/menu';
 import { ApiError } from '../lib/api';
 import { useToastStore } from '../store/toast';
@@ -22,8 +22,11 @@ import { ROLE_OUTLET } from '../constants/roles';
 
 const setStockSchema = z.object({
   menuItemId: z.number().int().min(1, 'Select a menu item'),
-  stock: z.number().int().min(0, 'Stock must be ≥ 0'),
+  // "Set" mode needs >= 0, "adjust" mode a non-zero delta; checked on submit.
+  stock: z.number().int().min(-1_000_000).max(1_000_000),
 });
+
+type StockMode = 'adjust' | 'set';
 
 type SetStockForm = z.infer<typeof setStockSchema>;
 
@@ -35,6 +38,7 @@ export default function Inventory() {
   const outletId = user?.role === ROLE_OUTLET ? user?.outletId ?? null : selectedOutletId;
   const pager = useCursorPager(outletId);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [mode, setMode] = useState<StockMode>('adjust');
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -57,7 +61,12 @@ export default function Inventory() {
 
   const addToast = useToastStore((s) => s.addToast);
   const setStockMutation = useMutation({
-    mutationFn: (body: SetStockForm) => setStock({ ...body, outletId: outletId! }),
+    mutationFn: (body: SetStockForm) => {
+      if (mode === 'adjust') return adjustStock({ outletId: outletId!, menuItemId: body.menuItemId, delta: body.stock });
+      // Guard against overwriting sales made since this count was read.
+      const current = data?.items.find((r) => r.menuItemId === body.menuItemId);
+      return setStock({ outletId: outletId!, menuItemId: body.menuItemId, stock: body.stock, ...(current ? { expectedStock: current.stock } : {}) });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       reset();
@@ -65,6 +74,7 @@ export default function Inventory() {
       addToast('Stock updated', 'success');
     },
     onError: (err) => {
+      if (err instanceof ApiError && err.status === 409) queryClient.invalidateQueries({ queryKey: ['inventory'] });
       if (err instanceof ApiError && err.errors) {
         const k = Object.keys(err.errors)[0];
         if (k) setError('root', { message: err.errors[k] });
@@ -102,7 +112,7 @@ export default function Inventory() {
         </div>
         <Button onClick={() => setDialogOpen(true)} className="gap-2">
           <Plus className="h-4 w-4" />
-          Set stock
+          Update stock
         </Button>
       </div>
 
@@ -152,8 +162,25 @@ export default function Inventory() {
       {dialogOpen && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50" onClick={() => setDialogOpen(false)}>
           <div className="rounded-lg border border-border bg-card p-6 shadow-lg w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-foreground mb-4">Set stock</h2>
-            <form onSubmit={handleSubmit((d) => setStockMutation.mutate(d))} className="space-y-4">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Update stock</h2>
+            <form
+              onSubmit={handleSubmit((d) => {
+                if (mode === 'set' && d.stock < 0) return setError('stock', { message: 'Stock must be ≥ 0' });
+                if (mode === 'adjust' && d.stock === 0) return setError('stock', { message: 'Enter a non-zero change' });
+                setStockMutation.mutate(d);
+              })}
+              className="space-y-4"
+            >
+              <div className="flex gap-4 text-sm">
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" name="stock-mode" checked={mode === 'adjust'} onChange={() => setMode('adjust')} />
+                  Add / remove
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" name="stock-mode" checked={mode === 'set'} onChange={() => setMode('set')} />
+                  Set exact count
+                </label>
+              </div>
               {errors.root && <p className="text-sm text-destructive" role="alert">{errors.root.message}</p>}
               <div className="space-y-2">
                 <Label>Menu item</Label>
@@ -164,8 +191,8 @@ export default function Inventory() {
                 {errors.menuItemId && <p className="text-sm text-destructive">{errors.menuItemId.message}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Stock</Label>
-                <Input type="number" min={0} {...register('stock', { valueAsNumber: true })} />
+                <Label>{mode === 'adjust' ? 'Change (e.g. 24 delivered, -2 wasted)' : 'Counted stock'}</Label>
+                <Input type="number" {...(mode === 'set' ? { min: 0 } : {})} {...register('stock', { valueAsNumber: true })} />
                 {errors.stock && <p className="text-sm text-destructive">{errors.stock.message}</p>}
               </div>
               <div className="flex gap-2 justify-end pt-2">

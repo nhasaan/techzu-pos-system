@@ -63,6 +63,29 @@ describe('HQ -> outlet -> sales -> reports flow', () => {
     });
   });
 
+  describe('inventory adjustments', () => {
+    it('applies deltas atomically and never below zero', async () => {
+      const put = await api().put('/api/inventory').set(bearer(hq)).send({ outletId: otherId, menuItemId: item.Latte, stock: 10 }).expect(200);
+      expect(put.body.data.stock).toBe(10);
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () => api().post('/api/inventory/adjust').set(bearer(hq)).send({ outletId: otherId, menuItemId: item.Latte, delta: 5 })),
+      );
+      expect(results.every((r) => r.status === 200)).toBe(true);
+      const down = await api().post('/api/inventory/adjust').set(bearer(hq)).send({ outletId: otherId, menuItemId: item.Latte, delta: -61 });
+      expect(down.status).toBe(409);
+      const last = await api().post('/api/inventory/adjust').set(bearer(hq)).send({ outletId: otherId, menuItemId: item.Latte, delta: -60 }).expect(200);
+      expect(last.body.data.stock).toBe(0);
+    });
+
+    it('rejects a stock count saved over a value that changed meanwhile', async () => {
+      await api().put('/api/inventory').set(bearer(hq)).send({ outletId: otherId, menuItemId: item.Bagel, stock: 8 }).expect(200);
+      await api().post('/api/inventory/adjust').set(bearer(hq)).send({ outletId: otherId, menuItemId: item.Bagel, delta: -1 }).expect(200);
+      const stale = await api().put('/api/inventory').set(bearer(hq)).send({ outletId: otherId, menuItemId: item.Bagel, stock: 20, expectedStock: 8 });
+      expect(stale.status).toBe(409);
+      await api().put('/api/inventory').set(bearer(hq)).send({ outletId: otherId, menuItemId: item.Bagel, stock: 20, expectedStock: 7 }).expect(200);
+    });
+  });
+
   describe('sales', () => {
     beforeAll(async () => {
       await api().put('/api/inventory').set(bearer(outletAdmin)).send({ outletId: mainId, menuItemId: item.Latte, stock: 20 }).expect(200);
