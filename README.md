@@ -38,12 +38,7 @@ docker compose -f orchestrate/compose.yml up --build -d
 docker compose -f orchestrate/compose.yml --profile db-job run --rm seed   # demo data (optional)
 ```
 
-No shared Postgres and Redis on this machine? Start the bundled ones on `common-net` first. Their credentials match the `app.env.example` defaults.
-
-```bash
-docker network create common-net
-docker compose -f orchestrate/compose.infra.yml up -d
-```
+The `common-net` network with the shared `postgres` and `redis` containers must already exist (`docker network create common-net` once).
 
 | What    | URL                         |
 |---------|-----------------------------|
@@ -292,7 +287,6 @@ Summary for the target of **10 outlets and about 100k transactions per month**:
 ├── docs/                       # architecture, schema + ERD, scaling, microservices, offline POS, deploy
 ├── orchestrate/
 │   ├── compose.yml             # app services on the external common-net network
-│   ├── compose.infra.yml       # optional Postgres + Redis for machines without shared ones
 │   ├── backend/                # API Dockerfile, entrypoint, migration/seed job images, env example
 │   └── frontend/               # nginx Dockerfile + config
 ├── render.yaml                 # Render blueprint

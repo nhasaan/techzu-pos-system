@@ -7,10 +7,6 @@ name: pos-system
 #   docker compose -f orchestrate/compose.yml up --build -d                          # migrate + api + web
 #   docker compose -f orchestrate/compose.yml --profile db-job run --rm seed         # demo data (optional)
 #
-# No shared Postgres/Redis on this machine? Start the bundled ones first:
-#   docker network create common-net
-#   docker compose -f orchestrate/compose.infra.yml up -d
-#
 # App: http://localhost:8080   API: http://localhost:3000/api   Docs: http://localhost:3000/docs
 
 x-backend: &backend
