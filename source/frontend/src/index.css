@@ -60,10 +60,37 @@
 }
 
 @layer utilities {
-  /* Staggered entrance for list rows; delay comes from an inline --row-delay. */
+  /* Staggered entrance for list rows; delay comes from an inline --row-delay. Rows start half
+     visible (not transparent), so a table never looks empty or blinks when it appears. */
   .row-enter {
-    animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: row-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: var(--row-delay, 0ms);
+  }
+
+  /* Loading placeholders only show up if loading takes longer than ~150ms; fast loads (cached data,
+     local network) go straight to content with no placeholder flash. */
+  .appear-delayed {
+    animation: appear 0.2s ease-out 150ms both;
+  }
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0.45;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

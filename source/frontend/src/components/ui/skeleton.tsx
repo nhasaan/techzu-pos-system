@@ -12,7 +12,7 @@ export function Skeleton({ className }: { className?: string }) {
 /** Table-shaped loading state: keeps the layout stable instead of a jumping "Loading…" line. */
 export function TableSkeleton({ rows = 6, cols = 3 }: { rows?: number; cols?: number }) {
   return (
-    <div className="space-y-3 py-2" role="status" aria-label="Loading">
+    <div className="appear-delayed space-y-3 py-2" role="status" aria-label="Loading">
       <div className="flex gap-4">
         {Array.from({ length: cols }, (_, i) => (
           <Skeleton key={i} className="h-3 flex-1 opacity-60" />
@@ -32,7 +32,7 @@ export function TableSkeleton({ rows = 6, cols = 3 }: { rows?: number; cols?: nu
 /** Whole-page placeholder used while a route's code chunk loads. */
 export function PageSkeleton() {
   return (
-    <div className="space-y-6 p-6" role="status" aria-label="Loading">
+    <div className="appear-delayed space-y-6 p-6" role="status" aria-label="Loading">
       <Skeleton className="h-7 w-48" />
       <div className="rounded-lg border border-border p-6">
         <TableSkeleton />

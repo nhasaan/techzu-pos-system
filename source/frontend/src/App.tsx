@@ -5,21 +5,23 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ApiError } from './lib/api';
 import { PageSkeleton } from './components/ui/skeleton';
+import { pageLoaders } from './lib/routes';
 
-// Route-level code splitting: each page is its own chunk, loaded on first visit.
-const Login = lazy(() => import('./pages/Login'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Outlets = lazy(() => import('./pages/Outlets'));
-const OutletNew = lazy(() => import('./pages/OutletNew'));
-const Menu = lazy(() => import('./pages/Menu'));
-const MasterMenu = lazy(() => import('./pages/MasterMenu'));
-const Inventory = lazy(() => import('./pages/Inventory'));
-const Sales = lazy(() => import('./pages/Sales'));
-const Receipt = lazy(() => import('./pages/Receipt'));
-const Reports = lazy(() => import('./pages/Reports'));
-const Users = lazy(() => import('./pages/Users'));
-const UserNew = lazy(() => import('./pages/UserNew'));
-const NotFound = lazy(() => import('./pages/NotFound'));
+// Route-level code splitting: each page is its own chunk. Chunks are warmed up in the background
+// after sign-in (see preloadPages), so navigation does not wait on a download.
+const Login = lazy(pageLoaders.Login);
+const Dashboard = lazy(pageLoaders.Dashboard);
+const Outlets = lazy(pageLoaders.Outlets);
+const OutletNew = lazy(pageLoaders.OutletNew);
+const Menu = lazy(pageLoaders.Menu);
+const MasterMenu = lazy(pageLoaders.MasterMenu);
+const Inventory = lazy(pageLoaders.Inventory);
+const Sales = lazy(pageLoaders.Sales);
+const Receipt = lazy(pageLoaders.Receipt);
+const Reports = lazy(pageLoaders.Reports);
+const Users = lazy(pageLoaders.Users);
+const UserNew = lazy(pageLoaders.UserNew);
+const NotFound = lazy(pageLoaders.NotFound);
 
 const queryClient = new QueryClient({
   defaultOptions: {

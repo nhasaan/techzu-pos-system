@@ -11,6 +11,7 @@ import Toast from './Toast';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import { PageSkeleton } from './ui/skeleton';
+import { preloadPages } from '../lib/routes';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -41,6 +42,11 @@ export default function Layout() {
       navigate('/login', { replace: true });
     }
   };
+
+  // Signed in: warm up every page's code so navigation never suspends on a chunk download.
+  useEffect(() => {
+    preloadPages();
+  }, []);
 
   // The page scrolls inside <main>, so reset it on navigation like a full page load would.
   const mainRef = useRef<HTMLElement>(null);
@@ -129,8 +135,9 @@ export default function Layout() {
         </header>
         <main ref={mainRef} className="flex-1 overflow-auto">
           <Suspense fallback={<PageSkeleton />}>
-            {/* Keyed by route: each page fades/slides in on navigation. */}
-            <div key={location.pathname} className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ease-out-expo">
+            {/* Keyed by route: a subtle settle on navigation. Opacity is never animated here - fading
+                the whole content area from 0 read as the page blinking. */}
+            <div key={location.pathname} className="animate-in slide-in-from-bottom-1 duration-200 ease-out-expo">
               <Outlet />
             </div>
           </Suspense>
