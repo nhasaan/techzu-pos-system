@@ -1,6 +1,6 @@
 # Deploying to Render
 
-The repository includes a Render Blueprint, [`render.yaml`](../render.yaml). It creates:
+The repository includes a Render Blueprint, [`render.yaml`](../render.yaml). It creates the following, with the database, Redis and API in the **Singapore** region (Render's default would be Oregon, and a region can't be changed after creation):
 
 | Resource       | Type                 | Notes                                                       |
 |----------------|----------------------|-------------------------------------------------------------|
