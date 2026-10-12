@@ -6,6 +6,7 @@ let getAccessToken: (() => string | null) | null = null;
 let getRefreshToken: (() => string | null) | null = null;
 let setTokens: ((accessToken: string, refreshToken: string) => void) | null = null;
 let onSessionExpired: (() => void) | null = null;
+let reloadTokens: (() => Promise<void>) | null = null;
 
 export function setAuthTokenGetter(fn: () => string | null) {
   getAccessToken = fn;
@@ -21,6 +22,26 @@ export function setTokensUpdater(fn: (accessToken: string, refreshToken: string)
 
 export function setSessionExpiredHandler(fn: () => void) {
   onSessionExpired = fn;
+}
+
+/** Re-reads persisted tokens (another tab may have rotated them). */
+export function setTokensReloader(fn: () => Promise<void>) {
+  reloadTokens = fn;
+}
+
+/**
+ * Another tab refreshed with the same refresh token a moment earlier: the server answers 401
+ * "Already used" to us. Wait briefly for that tab's new tokens to land in shared storage and adopt
+ * them instead of logging the user out of every tab.
+ */
+async function adoptTokensFromOtherTab(usedToken: string): Promise<boolean> {
+  for (let i = 0; i < 10; i++) {
+    await reloadTokens?.();
+    const latest = getRefreshToken?.() ?? null;
+    if (latest && latest !== usedToken) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
 }
 
 interface RefreshPayload {
@@ -57,7 +78,8 @@ function attemptRefresh(): Promise<boolean> {
       setTokens?.(payload.accessToken, payload.refreshToken);
       return true;
     })
-    .catch(() => {
+    .catch(async (err) => {
+      if (err instanceof ApiError && err.errors?.token === 'Already used' && (await adoptTokensFromOtherTab(token))) return true;
       onSessionExpired?.();
       return false;
     })
