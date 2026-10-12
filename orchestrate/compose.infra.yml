@@ -1,0 +1,48 @@
+name: pos-infra
+
+# Optional: Postgres + Redis for machines that do not already run shared ones on `common-net`.
+# They join common-net under the same names the app expects (`postgres`, `redis`).
+#
+#   docker network create common-net
+#   docker compose -f orchestrate/compose.infra.yml up -d
+#
+# Matches the defaults in orchestrate/backend/.envs/app.env.example.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pos
+      POSTGRES_PASSWORD: pos
+      POSTGRES_DB: pos_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pos -d pos_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      common-net:
+        aliases: [postgres]
+
+  redis:
+    image: redis:7-alpine
+    # noeviction: Redis must never silently drop token-blacklist keys under memory pressure (that would
+    # revive logged-out tokens). When full, cache writes are refused and the API falls back to Postgres.
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction", "--save", ""]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      common-net:
+        aliases: [redis]
+
+volumes:
+  pgdata:
+
+networks:
+  common-net:
+    external: true

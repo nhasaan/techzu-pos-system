@@ -27,11 +27,22 @@ A multi-outlet F&B point-of-sale system:
 
 ## Quick start (Docker)
 
-You need Docker with Compose v2.24 or later.
+You need Docker with Compose v2. The app containers join the external **`common-net`** network and use the shared Postgres and Redis there, reachable as `postgres` and `redis`.
 
 ```bash
-docker compose -f orchestrate/compose.yml up --build -d                 # postgres, redis, migrate, api, web
-docker compose -f orchestrate/compose.yml --profile db-job run --rm seed # demo data (optional)
+# 1. Configuration (once): point DATABASE_URL / REDIS_URL at the shared containers, set JWT_SECRET
+cp orchestrate/backend/.envs/app.env.example orchestrate/backend/.envs/app.env
+
+# 2. Run: migrations run first, then the API and the web app
+docker compose -f orchestrate/compose.yml up --build -d
+docker compose -f orchestrate/compose.yml --profile db-job run --rm seed   # demo data (optional)
+```
+
+No shared Postgres and Redis on this machine? Start the bundled ones on `common-net` first. Their credentials match the `app.env.example` defaults.
+
+```bash
+docker network create common-net
+docker compose -f orchestrate/compose.infra.yml up -d
 ```
 
 | What    | URL                         |
@@ -40,8 +51,6 @@ docker compose -f orchestrate/compose.yml --profile db-job run --rm seed # demo 
 | API     | http://localhost:3000/api   |
 | API docs (Swagger) | http://localhost:3000/docs |
 | Health  | http://localhost:3000/health/ready |
-
-To override settings, copy `orchestrate/backend/.envs/app.env.example` to `app.env`.
 
 ## Local development
 
@@ -261,7 +270,8 @@ Summary for the target of **10 outlets and about 100k transactions per month**:
 .
 ├── docs/                       # architecture, schema + ERD, scaling, microservices, offline POS, deploy
 ├── orchestrate/
-│   ├── compose.yml             # full local stack
+│   ├── compose.yml             # app services on the external common-net network
+│   ├── compose.infra.yml       # optional Postgres + Redis for machines without shared ones
 │   ├── backend/                # API Dockerfile, entrypoint, migration/seed job images, env example
 │   └── frontend/               # nginx Dockerfile + config
 ├── render.yaml                 # Render blueprint
