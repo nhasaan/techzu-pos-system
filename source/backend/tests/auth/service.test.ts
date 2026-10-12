@@ -64,6 +64,17 @@ describe('auth', () => {
     expect(results.map((r) => r.status)).toEqual(Array(15).fill(200));
   }, 30000);
 
+  it('upgrades password hashes made with older parameters on login', async () => {
+    const argon2 = (await import('argon2')).default;
+    const legacy = await argon2.hash(PASSWORD, { memoryCost: 65536, timeCost: 3, parallelism: 4 });
+    await pool.query("UPDATE users SET password_hash = $1 WHERE username = 'admin'", [legacy]);
+    await login('admin');
+    await new Promise((r) => setTimeout(r, 300)); // rehash is fire-and-forget
+    const { rows } = await pool.query("SELECT password_hash FROM users WHERE username = 'admin'");
+    expect(rows[0].password_hash).toContain('m=19456,t=2,p=1');
+    await login('admin'); // still works with the new hash
+  });
+
   it('prunes expired sessions on login', async () => {
     await login('admin');
     await pool.query("UPDATE tokens SET expires_at = now() - interval '1 day'");

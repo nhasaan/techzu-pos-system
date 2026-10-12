@@ -1,4 +1,4 @@
-import argon2 from 'argon2';
+import { hashPassword } from '../../shared/utils/password';
 import { ROLE_OUTLET } from '../../shared/db/schema';
 import { ConflictError, ValidationError } from '../../shared/utils/errors';
 import { isForeignKeyViolation, isUniqueViolation } from '../../shared/utils/pg-errors';
@@ -12,7 +12,7 @@ export async function listUsers(cursor: string | undefined, limit: number) {
 }
 
 export async function createUser(body: CreateUserBody) {
-  const passwordHash = await argon2.hash(body.password);
+  const passwordHash = await hashPassword(body.password);
   try {
     return await usersRepository.create({
       username: body.username,

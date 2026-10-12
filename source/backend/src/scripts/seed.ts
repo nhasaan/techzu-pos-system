@@ -1,4 +1,3 @@
-import argon2 from 'argon2';
 import { count, eq, inArray, sql } from 'drizzle-orm';
 import { db, pool } from '../shared/db';
 import {
@@ -14,6 +13,7 @@ import {
   users,
 } from '../shared/db/schema';
 import { logger } from '../shared/utils/logger';
+import { hashPassword } from '../shared/utils/password';
 import { rebuildSalesRollups } from '../shared/db/rollups';
 
 const DEFAULT_PASSWORD = process.env.SEED_PASSWORD ?? 'REDACTED';
@@ -66,7 +66,7 @@ const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
 const toCents = (p: string) => Math.round(Number(p) * 100);
 
 async function seed() {
-  const passwordHash = await argon2.hash(DEFAULT_PASSWORD);
+  const passwordHash = await hashPassword(DEFAULT_PASSWORD);
 
   await db.transaction(async (tx) => {
     // Serialise concurrent seeds (e.g. several instances booting together); released at commit.

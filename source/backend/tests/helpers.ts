@@ -1,8 +1,8 @@
 import path from 'path';
-import argon2 from 'argon2';
 import request from 'supertest';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createApp } from '../src/app';
+import { hashPassword } from '../src/shared/utils/password';
 import { db, pool } from '../src/shared/db';
 import { users, type UserRole } from '../src/shared/db/schema';
 
@@ -22,7 +22,7 @@ export async function setupDatabase() {
 
 export const teardownDatabase = () => pool.end();
 
-const hash = argon2.hash(PASSWORD);
+const hash = hashPassword(PASSWORD);
 export async function createUser(username: string, role: UserRole, outletId: number | null = null) {
   const [row] = await db.insert(users).values({ username, role, outletId, passwordHash: await hash }).returning();
   return row;

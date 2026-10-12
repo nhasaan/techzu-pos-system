@@ -12,6 +12,10 @@ export const authRepository = {
     return exec.query.users.findFirst({ where: eq(users.id, id) });
   },
 
+  async updatePasswordHash(userId: number, passwordHash: string) {
+    await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  },
+
   /** Housekeeping: refresh sessions past their expiry can never be used again. */
   async deleteExpiredSessions(userId: number) {
     await db.delete(tokens).where(and(eq(tokens.userId, userId), lt(tokens.expiresAt, sql`now()`)));

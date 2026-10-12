@@ -1,10 +1,10 @@
-import argon2 from 'argon2';
 import { config } from '../../shared/config';
 import { db } from '../../shared/db';
 import { UnauthorizedError } from '../../shared/utils/errors';
 import { issueTokenPair, verifyToken, type SessionSubject } from '../../shared/utils/jwt';
 import { logger } from '../../shared/utils/logger';
 import { cacheSet, isRedisReady, redis } from '../../shared/utils/redis';
+import { hashPassword, needsRehash, verifyPassword } from '../../shared/utils/password';
 import { authRepository } from './repository';
 
 const blacklistKey = (jti: string) => `bl:${jti}`;
@@ -19,7 +19,7 @@ const REFRESH_RACE_GRACE_MS = 10_000;
 // Verifying against a real hash when the user does not exist keeps response time constant,
 // so login timing cannot be used to enumerate usernames.
 let dummyHash: Promise<string> | null = null;
-const getDummyHash = () => (dummyHash ??= argon2.hash('timing-equaliser-not-a-real-password'));
+const getDummyHash = () => (dummyHash ??= hashPassword('timing-equaliser-not-a-real-password'));
 
 const toSubject = (u: { id: number; username: string; role: SessionSubject['role']; outletId: number | null }) => ({
   id: u.id,
@@ -36,8 +36,14 @@ async function startSession(user: SessionSubject) {
 
 export async function login(username: string, password: string) {
   const user = await authRepository.findUserByUsername(username);
-  const valid = await argon2.verify(user?.passwordHash ?? (await getDummyHash()), password).catch(() => false);
+  const valid = await verifyPassword(user?.passwordHash ?? (await getDummyHash()), password);
   if (!user || !valid) throw new UnauthorizedError('Invalid credentials', { credentials: 'Invalid credentials' });
+  if (needsRehash(user.passwordHash)) {
+    // Transparently upgrade hashes made with older parameters (we have the plaintext only now).
+    hashPassword(password)
+      .then((hash) => authRepository.updatePasswordHash(user.id, hash))
+      .catch((err) => logger.warn({ err, userId: user.id }, 'Password rehash failed'));
+  }
 
   const { pair, expiresAt } = await startSession(toSubject(user));
   await authRepository.insertSession(db, user.id, pair.jti, expiresAt);
