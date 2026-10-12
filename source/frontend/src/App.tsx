@@ -13,6 +13,8 @@ const OutletNew = lazy(() => import('./pages/OutletNew'));
 const Menu = lazy(() => import('./pages/Menu'));
 const MasterMenu = lazy(() => import('./pages/MasterMenu'));
 const Inventory = lazy(() => import('./pages/Inventory'));
+const Sales = lazy(() => import('./pages/Sales'));
+const Receipt = lazy(() => import('./pages/Receipt'));
 const Users = lazy(() => import('./pages/Users'));
 const UserNew = lazy(() => import('./pages/UserNew'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -44,6 +46,8 @@ function App() {
               <Route path="menu" element={<Menu />} />
               <Route path="menu/master" element={<MasterMenu />} />
               <Route path="inventory" element={<Inventory />} />
+              <Route path="sales" element={<Sales />} />
+              <Route path="sales/:saleId" element={<Receipt />} />
               <Route path="users" element={<Users />} />
               <Route path="users/new" element={<UserNew />} />
             </Route>
