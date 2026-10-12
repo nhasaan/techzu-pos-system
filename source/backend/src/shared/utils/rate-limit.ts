@@ -1,5 +1,7 @@
 import rateLimit, { MemoryStore, type Options, type Store, type ClientRateLimitInfo } from 'express-rate-limit';
 import { config } from '../config';
+import type { Request } from 'express';
+import { verifyToken } from './jwt';
 import { fail } from './response';
 import { isRedisReady, redis } from './redis';
 
@@ -53,20 +55,50 @@ class RedisWithMemoryFallbackStore implements Store {
 
 const tooMany = fail('Too many requests, please try again later.', { rate: 'Limit exceeded' });
 
-function limiter(name: string, max: number, windowMs = config.rateLimit.windowMs) {
+const clientIp = (req: Request) => req.ip ?? req.socket.remoteAddress ?? 'unknown';
+
+/**
+ * Who a request counts against. All terminals of an outlet usually share one public (NAT) IP, so
+ * per-IP limits would make an outlet's cashiers throttle each other. Requests carrying a valid token
+ * are therefore limited per user; only anonymous traffic falls back to the IP.
+ */
+export function apiKey(req: Request): string {
+  const header = req.headers.authorization;
+  const token = header?.toLowerCase().startsWith('bearer ') ? header.slice(7) : null;
+  const claims = token ? (verifyToken(token, 'access') ?? verifyToken(token, 'refresh')) : null;
+  return claims ? `u:${claims.userId}` : `ip:${clientIp(req)}`;
+}
+
+/** Login attempts per (username, IP): stops brute force on an account without locking out a whole outlet. */
+export function loginKey(req: Request): string {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase().slice(0, 64) : '';
+  return `${clientIp(req)}:${username}`;
+}
+
+/** Refresh attempts per user (from the refresh token), falling back to the IP for junk tokens. */
+export function refreshKey(req: Request): string {
+  const token = typeof req.body?.refreshToken === 'string' ? req.body.refreshToken : '';
+  const claims = token ? verifyToken(token, 'refresh') : null;
+  return claims ? `u:${claims.userId}` : `ip:${clientIp(req)}`;
+}
+
+function limiter(name: string, max: number, keyGenerator: (req: Request) => string, windowMs = config.rateLimit.windowMs) {
   return rateLimit({
     windowMs,
     limit: max,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     store: new RedisWithMemoryFallbackStore(`rl:${name}:`),
+    keyGenerator,
     message: tooMany,
     skip: () => config.isTest,
   });
 }
 
-/** General API protection per client IP. */
-export const apiLimiter = limiter('api', config.rateLimit.max);
-/** Brute-force protection for credential endpoints. */
-export const loginLimiter = limiter('login', config.rateLimit.loginMax);
-export const refreshLimiter = limiter('refresh', config.rateLimit.loginMax * 3);
+/** General API protection, per user (per IP for anonymous requests). */
+export const apiLimiter = limiter('api', config.rateLimit.max, apiKey);
+/** Brute-force protection for one account. */
+export const loginLimiter = limiter('login', config.rateLimit.loginMax, loginKey);
+/** Password-spraying protection: many usernames from one address (generous enough for a busy outlet). */
+export const loginIpLimiter = limiter('login-ip', config.rateLimit.loginMax * 10, (req) => clientIp(req));
+export const refreshLimiter = limiter('refresh', config.rateLimit.loginMax * 3, refreshKey);
