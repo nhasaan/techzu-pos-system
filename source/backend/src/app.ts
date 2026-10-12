@@ -6,6 +6,7 @@ import { apiLimiter } from './shared/utils/rate-limit';
 import { securityMiddleware } from './shared/utils/security';
 import { authRouter } from './modules/auth/routes';
 import { healthRouter } from './modules/health/routes';
+import { inventoryRouter } from './modules/inventory/routes';
 import { menuRouter } from './modules/menu/routes';
 import { outletsRouter } from './modules/outlets/routes';
 import { usersRouter } from './modules/users/routes';
@@ -28,6 +29,7 @@ export function createApp() {
   api.use(authRouter);
   api.use(outletsRouter);
   api.use(menuRouter);
+  api.use(inventoryRouter);
   api.use(usersRouter);
   app.use('/api', api);
 
