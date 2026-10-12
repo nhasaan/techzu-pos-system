@@ -1,9 +1,12 @@
+import { logger } from '../../shared/utils/logger';
 import { cacheGet, cacheIncr, cacheSet } from '../../shared/utils/redis';
 
 // Cache-aside for the outlet menu (the hottest read: every POS terminal loads it).
 // Invalidation is exact: assignments bump a per-outlet version that is part of every cache key,
 // so stale pages are simply never read again and expire on their own.
-const TTL_SEC = 300;
+// Short TTL bounds staleness if an invalidation is ever missed (e.g. Redis briefly unreachable during
+// an assignment); terminals still hit the cache for nearly all reads.
+const TTL_SEC = 60;
 const versionKey = (outletId: number) => `menu:outlet:${outletId}:ver`;
 const pageKey = (outletId: number, version: string, cursor: string | undefined, limit: number) =>
   `menu:outlet:${outletId}:v${version}:c${cursor ?? ''}:l${limit}`;
@@ -20,6 +23,8 @@ export const outletMenuCache = {
   },
 
   async invalidate(outletId: number) {
-    await cacheIncr(versionKey(outletId));
+    if ((await cacheIncr(versionKey(outletId))) === null) {
+      logger.warn({ outletId }, 'Menu cache invalidation failed; stale entries expire within the TTL');
+    }
   },
 };
