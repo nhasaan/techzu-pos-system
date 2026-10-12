@@ -49,8 +49,10 @@ services:
       # Set to the frontend URL (e.g. https://pos-frontend.onrender.com). Empty allows any origin.
       - key: CORS_ORIGINS
         sync: false
+      # Demo users' password: random, never in the repo. Read it in Render (pos-backend -> Environment)
+      # and share it with reviewers privately.
       - key: SEED_PASSWORD
-        sync: false
+        generateValue: true
 
   - type: web
     name: pos-frontend

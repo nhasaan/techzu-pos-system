@@ -15,9 +15,9 @@ The repository includes a Render Blueprint, [`render.yaml`](../render.yaml). It 
 2. In Render, go to **Blueprints → New Blueprint Instance** and select the repository.
 3. When prompted:
    - **`CORS_ORIGINS`:** the frontend URL, e.g. `https://pos-frontend.onrender.com`. You can fill it in after the first deploy. Left empty, the API accepts any origin, which is acceptable because auth uses bearer tokens, not cookies.
-   - **`SEED_PASSWORD`:** the password for the demo users. Leaving it blank is fine: it defaults to `REDACTED`. Blank variables are treated as unset everywhere.
-4. Apply. Render provisions the database and Redis, then builds and deploys both services. `JWT_SECRET` is generated automatically.
-5. Open the frontend URL and sign in with one of the demo users from the [README](../README.md#demo-users).
+4. Apply. Render provisions the database and Redis, then builds and deploys both services. `JWT_SECRET` and `SEED_PASSWORD` are generated automatically.
+5. Get the demo users' password from **pos-backend → Environment → `SEED_PASSWORD`**. It is never stored in the repo, so share it with reviewers privately.
+6. Open the frontend URL and sign in with one of the demo users from the [README](../README.md#demo-users).
 
 Check the deployment:
 
@@ -50,7 +50,7 @@ The blueprint and the deploy were checked locally before any real deploy:
 
 - **Schema:** `render.yaml` validates against Render's published JSON Schema (`render.com/schema/render.yaml.json`).
 - **Dress rehearsal:**
-  - Environment: a Linux `node:24` container with PostgreSQL 18 and Valkey 8 (what Render provisions). It used the exact `buildCommand` and `startCommand`, `PORT=10000`, a generated `JWT_SECRET`, and `CORS_ORIGINS` and `SEED_PASSWORD` left blank.
-  - Results: the build succeeds and dev dependencies are pruned. Two instances booting at the same time (as in a zero-downtime deploy) apply migrations once and seed once, thanks to advisory locks. A restart is a no-op for migrations and the seed. Login with the default password, sales, reports and `/docs` all work.
+  - Environment: a Linux `node:24` container with PostgreSQL 18 and Valkey 8 (what Render provisions). It used the exact `buildCommand` and `startCommand`, `PORT=10000`, a generated `JWT_SECRET` and `SEED_PASSWORD`, and `CORS_ORIGINS` left blank.
+  - Results: the build succeeds and dev dependencies are pruned. Two instances booting at the same time (as in a zero-downtime deploy) apply migrations once and seed once, thanks to advisory locks. A restart is a no-op for migrations and the seed. Login with the generated password, sales, reports and `/docs` all work.
 - **Frontend:** the static site build bakes in the backend URL.
 

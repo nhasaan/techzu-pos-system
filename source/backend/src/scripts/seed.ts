@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { count, eq, inArray, sql } from 'drizzle-orm';
 import { db, pool } from '../shared/db';
 import {
@@ -16,8 +17,18 @@ import { logger } from '../shared/utils/logger';
 import { hashPassword } from '../shared/utils/password';
 import { rebuildSalesRollups } from '../shared/db/rollups';
 
-// `||`, not `??`: an env var left blank (e.g. an unfilled Render prompt) must not become an empty password.
-const DEFAULT_PASSWORD = process.env.SEED_PASSWORD?.trim() || 'REDACTED';
+/**
+ * Password for the demo users. Never hardcoded (the repo is public):
+ * - SEED_PASSWORD when set (Render generates one; read it in the dashboard).
+ * - Otherwise, outside production, a random one that is printed once when the users are created.
+ * - In production without SEED_PASSWORD, demo users are skipped rather than inventing or logging one.
+ */
+function resolveSeedPassword(): { password: string; generated: boolean } | null {
+  const fromEnv = process.env.SEED_PASSWORD?.trim();
+  if (fromEnv) return { password: fromEnv, generated: false };
+  if (process.env.NODE_ENV === 'production') return null;
+  return { password: randomBytes(12).toString('base64url'), generated: true };
+}
 
 const SEED_OUTLETS = [
   { name: 'Main Outlet', address: '123 Main St' },
@@ -67,7 +78,9 @@ const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
 const toCents = (p: string) => Math.round(Number(p) * 100);
 
 async function seed() {
-  const passwordHash = await hashPassword(DEFAULT_PASSWORD);
+  const seedPassword = resolveSeedPassword();
+  const passwordHash = seedPassword ? await hashPassword(seedPassword.password) : null;
+  let createdUsers: string[] = [];
 
   await db.transaction(async (tx) => {
     // Serialise concurrent seeds (e.g. several instances booting together); released at commit.
@@ -83,16 +96,22 @@ async function seed() {
     const mainId = outletId('Main Outlet');
     const downtownId = outletId('Downtown Outlet');
 
-    // Users
-    await tx
-      .insert(users)
-      .values([
-        { username: 'sarah.chen', passwordHash, role: ROLE_SUPERADMIN, outletId: null },
-        { username: 'james.wilson', passwordHash, role: ROLE_HQ, outletId: null },
-        { username: 'david.kim', passwordHash, role: ROLE_OUTLET, outletId: mainId },
-        { username: 'emma.lee', passwordHash, role: ROLE_OUTLET, outletId: downtownId },
-      ])
-      .onConflictDoNothing({ target: users.username });
+    // Users (existing ones keep their password; only missing users are created)
+    if (passwordHash) {
+      const inserted = await tx
+        .insert(users)
+        .values([
+          { username: 'sarah.chen', passwordHash, role: ROLE_SUPERADMIN, outletId: null },
+          { username: 'james.wilson', passwordHash, role: ROLE_HQ, outletId: null },
+          { username: 'david.kim', passwordHash, role: ROLE_OUTLET, outletId: mainId },
+          { username: 'emma.lee', passwordHash, role: ROLE_OUTLET, outletId: downtownId },
+        ])
+        .onConflictDoNothing({ target: users.username })
+        .returning({ username: users.username });
+      createdUsers = inserted.map((u) => u.username);
+    } else {
+      logger.error('SEED_PASSWORD is not set; demo users were not created (no password is ever hardcoded or generated in production)');
+    }
 
     // Master menu
     await tx.insert(menuItems).values(SEED_MENU_ITEMS).onConflictDoNothing();
@@ -163,10 +182,12 @@ async function seed() {
     }
   });
 
-  logger.info(
-    { users: ['sarah.chen (superadmin)', 'james.wilson (hqadmin)', 'david.kim (outletadmin, Main)', 'emma.lee (outletadmin, Downtown)'] },
-    'Seed complete. Default password comes from SEED_PASSWORD.',
-  );
+  logger.info({ createdUsers }, 'Seed complete');
+  if (seedPassword?.generated && createdUsers.length) {
+    // Development only (never in production): show the generated password once, on the console,
+    // not in structured logs. Set SEED_PASSWORD to choose your own.
+    console.log(`\nDemo users created (${createdUsers.join(', ')}). Generated password: ${seedPassword.password}\n`);
+  }
 }
 
 seed()

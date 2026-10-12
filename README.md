@@ -118,7 +118,11 @@ Every variable is validated at startup (`src/shared/config`). See `source/backen
 
 ## Demo users
 
-The seed creates these users. The password is `REDACTED` unless `SEED_PASSWORD` is set.
+The seed creates these users. Their password is **not stored in the repo**; it comes from `SEED_PASSWORD`:
+- **On Render:** it's generated at deploy time. Find it under **pos-backend → Environment → `SEED_PASSWORD`**, and share it with reviewers privately.
+- **Locally:** set `SEED_PASSWORD` in `.env` (or `orchestrate/backend/.envs/app.env`). If you leave it empty, a random password is generated and printed once in the terminal when the users are first created.
+
+Existing users keep their password: re-running the seed never changes it.
 
 | Username | Role | Can do |
 |---|---|---|
