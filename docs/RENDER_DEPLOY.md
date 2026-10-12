@@ -16,7 +16,7 @@ The repository includes a Render Blueprint, [`render.yaml`](../render.yaml). It 
 3. When prompted:
    - **`CORS_ORIGINS`:** the frontend URL, e.g. `https://pos-frontend.onrender.com`. You can fill it in after the first deploy. Left empty, the API accepts any origin, which is acceptable because auth uses bearer tokens, not cookies.
 4. Apply. Render provisions the database and Redis, then builds and deploys both services. `JWT_SECRET` and `SEED_PASSWORD` are generated automatically.
-5. Get the demo users' password from **pos-backend → Environment → `SEED_PASSWORD`**. It is never stored in the repo, so share it with reviewers privately.
+5. Get the demo users' password from **pos-backend → Environment → `SEED_PASSWORD`**. It is never stored in the repo, so share it with reviewers privately. To use a password of your own, edit `SEED_PASSWORD` there; Render redeploys and the seed updates the demo accounts to the new value.
 6. Open the frontend URL and sign in with one of the demo users from the [README](../README.md#demo-users).
 
 Check the deployment:

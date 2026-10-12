@@ -122,7 +122,7 @@ The seed creates these users. Their password is **not stored in the repo**; it c
 - **On Render:** it's generated at deploy time. Find it under **pos-backend → Environment → `SEED_PASSWORD`**, and share it with reviewers privately.
 - **Locally:** set `SEED_PASSWORD` in `.env` (or `orchestrate/backend/.envs/app.env`). If you leave it empty, a random password is generated and printed once in the terminal when the users are first created.
 
-Existing users keep their password: re-running the seed never changes it.
+When `SEED_PASSWORD` is set, it's the source of truth for these four accounts. Changing it (for example in Render's Environment tab, which redeploys) updates their password on the next boot and signs them out everywhere. A randomly generated local password never overwrites existing accounts.
 
 | Username | Role | Can do |
 |---|---|---|

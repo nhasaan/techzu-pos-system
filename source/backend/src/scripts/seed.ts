@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import { count, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { db, pool } from '../shared/db';
 import {
   inventory,
@@ -11,10 +11,11 @@ import {
   ROLE_SUPERADMIN,
   saleItems,
   sales,
+  tokens,
   users,
 } from '../shared/db/schema';
 import { logger } from '../shared/utils/logger';
-import { hashPassword } from '../shared/utils/password';
+import { hashPassword, verifyPassword } from '../shared/utils/password';
 import { rebuildSalesRollups } from '../shared/db/rollups';
 
 /**
@@ -81,6 +82,7 @@ async function seed() {
   const seedPassword = resolveSeedPassword();
   const passwordHash = seedPassword ? await hashPassword(seedPassword.password) : null;
   let createdUsers: string[] = [];
+  const passwordSyncedUsers: string[] = [];
 
   await db.transaction(async (tx) => {
     // Serialise concurrent seeds (e.g. several instances booting together); released at commit.
@@ -96,19 +98,41 @@ async function seed() {
     const mainId = outletId('Main Outlet');
     const downtownId = outletId('Downtown Outlet');
 
-    // Users (existing ones keep their password; only missing users are created)
-    if (passwordHash) {
+    // Users. Missing demo users are created. When SEED_PASSWORD is set explicitly, it is the source of
+    // truth for the demo accounts: existing ones are re-synced to it, so changing the variable in Render
+    // (and redeploying) changes their password. A randomly generated dev password never overwrites.
+    if (passwordHash && seedPassword) {
+      const demoUsers = [
+        { username: 'sarah.chen', passwordHash, role: ROLE_SUPERADMIN, outletId: null },
+        { username: 'james.wilson', passwordHash, role: ROLE_HQ, outletId: null },
+        { username: 'david.kim', passwordHash, role: ROLE_OUTLET, outletId: mainId },
+        { username: 'emma.lee', passwordHash, role: ROLE_OUTLET, outletId: downtownId },
+      ];
       const inserted = await tx
         .insert(users)
-        .values([
-          { username: 'sarah.chen', passwordHash, role: ROLE_SUPERADMIN, outletId: null },
-          { username: 'james.wilson', passwordHash, role: ROLE_HQ, outletId: null },
-          { username: 'david.kim', passwordHash, role: ROLE_OUTLET, outletId: mainId },
-          { username: 'emma.lee', passwordHash, role: ROLE_OUTLET, outletId: downtownId },
-        ])
+        .values(demoUsers)
         .onConflictDoNothing({ target: users.username })
         .returning({ username: users.username });
       createdUsers = inserted.map((u) => u.username);
+
+      if (!seedPassword.generated) {
+        const existing = await tx
+          .select({ id: users.id, username: users.username, passwordHash: users.passwordHash })
+          .from(users)
+          .where(inArray(users.username, demoUsers.map((u) => u.username)));
+        for (const user of existing) {
+          if (createdUsers.includes(user.username)) continue;
+          // Only re-hash when the stored password differs (no churn on every boot).
+          if (await verifyPassword(user.passwordHash, seedPassword.password)) continue;
+          await tx.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+          // A password change ends existing sessions, as it would for a real account.
+          await tx
+            .update(tokens)
+            .set({ status: 'revoked', revokedAt: new Date() })
+            .where(and(eq(tokens.userId, user.id), sql`${tokens.status} <> 'revoked'`));
+          passwordSyncedUsers.push(user.username);
+        }
+      }
     } else {
       logger.error('SEED_PASSWORD is not set; demo users were not created (no password is ever hardcoded or generated in production)');
     }
@@ -182,7 +206,7 @@ async function seed() {
     }
   });
 
-  logger.info({ createdUsers }, 'Seed complete');
+  logger.info({ createdUsers, passwordSyncedUsers }, 'Seed complete');
   if (seedPassword?.generated && createdUsers.length) {
     // Development only (never in production): show the generated password once, on the console,
     // not in structured logs. Set SEED_PASSWORD to choose your own.
