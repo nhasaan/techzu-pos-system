@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { idBody, moneySchema, outletIdParamSchema, paginationQuerySchema } from '../../shared/utils/schemas';
+import { idBody, moneySchema, optionalText, outletIdParamSchema, paginationQuerySchema } from '../../shared/utils/schemas';
 
 export const createMenuItemBodySchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),
-  description: z.string().trim().max(500).optional(),
+  description: optionalText(500),
   basePrice: moneySchema,
 });
 

@@ -8,4 +8,8 @@ describe('outlets validation', () => {
     expect(createOutletBodySchema.parse({ name: '  Main  ' }).name).toBe('Main');
     expect(ok(createOutletBodySchema, { name: '   ' })).toBe(false);
   });
+
+  it('turns a blank address into undefined (stored as NULL)', () => {
+    expect(createOutletBodySchema.parse({ name: 'X', address: '   ' }).address).toBeUndefined();
+  });
 });

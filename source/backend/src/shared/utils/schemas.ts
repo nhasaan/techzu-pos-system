@@ -48,3 +48,12 @@ export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
   .refine(isRealCalendarDate, 'Invalid calendar date');
+
+/** Optional free text: trimmed, and blank input becomes undefined (stored as NULL, not ''). */
+export const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((v) => (v ? v : undefined));

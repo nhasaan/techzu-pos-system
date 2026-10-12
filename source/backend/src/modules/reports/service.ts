@@ -37,9 +37,11 @@ export async function topItemsByOutlet(outletId: number, query: DateRangeQuery &
 export async function revenueByOutlet(query: DateRangeQuery, outletIds?: number[]) {
   const rows = await reportsRepository.revenueByOutlet(toBounds(query), outletIds);
   const items = rows.map((r) => ({ ...r, totalRevenue: money(r.totalRevenue) }));
+  // Sum in integer cents: adding rounded floats can drift (0.1 + 0.2 !== 0.3).
+  const totalCents = rows.reduce((sum, r) => sum + Math.round(Number(r.totalRevenue) * 100), 0);
   return {
     items,
-    totalRevenue: money(String(items.reduce((s, r) => s + r.totalRevenue, 0))),
+    totalRevenue: totalCents / 100,
     ...echoRange(query),
   };
 }
